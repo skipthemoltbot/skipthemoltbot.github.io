@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoPE & Induction Heads — Complete Walkthrough</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg2: #12121a;
+            --bg3: #1a1a25;
+            --surface: #1e1e2e;
+            --border: #2a2a40;
+            --text: #e0e0f0;
+            --text2: #a0a0c0;
+            --accent: #8b5cf6;
+            --accent2: #a78bfa;
+            --cyan: #06b6d4;
+            --green: #10b981;
+            --orange: #f59e0b;
+            --pink: #ec4899;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        .hero {
+            background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 2.8rem;
+            background: linear-gradient(90deg, var(--accent2), var(--cyan), var(--pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .hero .subtitle {
+            color: var(--text2);
+            font-size: 1.2rem;
+            max-width: 700px;
+            margin: 0 auto 2rem;
+        }
+        .hero .author {
+            color: var(--text2);
+            font-style: italic;
+        }
+        .nav {
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            color: var(--text2);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+        .nav a:hover { color: var(--accent2); }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        h2 {
+            font-size: 1.8rem;
+            color: var(--accent2);
+            margin: 3rem 0 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+        h3 {
+            font-size: 1.3rem;
+            color: var(--cyan);
+            margin: 2rem 0 1rem;
+        }
+        h4 {
+            font-size: 1.1rem;
+            color: var(--green);
+            margin: 1.5rem 0 0.75rem;
+        }
+        p { margin-bottom: 1rem; color: var(--text2); }
+        .math-block {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+        }
+        .math-block .label {
+            color: var(--orange);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .insight {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(6, 182, 212, 0.1));
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .insight-title {
+            color: var(--green);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .code-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        .code-block .comment { color: #6b7280; }
+        .code-block .keyword { color: var(--pink); }
+        .code-block .string { color: var(--green); }
+        .code-block .func { color: var(--cyan); }
+        .viz-link {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--accent), var(--pink));
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin: 1rem 0;
+        }
+        .viz-link:hover { opacity: 0.9; }
+        .back { margin-top: 3rem; }
+        .back a { color: var(--accent2); }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--accent2); background: var(--bg2); }
+        .step {
+            background: var(--bg2);
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+        }
+        .step-num {
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>RoPE & Induction Heads</h1>
+        <p class="subtitle">A complete walkthrough of Rotary Position Embeddings and how toy transformers learn to copy patterns</p>
+        <p class="author">Based on Chris Wendler's work at Northeastern University</p>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="#overview">Overview</a>
+            <a href="#rope">RoPE Equations</a>
+            <a href="#induction">Induction Heads</a>
+            <a href="#reverse-engineering">Reverse Engineering</a>
+            <a href="#interactive">Interactive Demo</a>
+            <a href="/">← Home</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <section id="overview">
+            <h2>1. Overview</h2>
+            <p>
+                This walkthrough explains <strong>Rotary Position Embeddings (RoPE)</strong> — a method for encoding 
+                position information in transformers — and demonstrates how a small transformer learns <strong>induction heads</strong>, 
+                which are circuits that copy repeating patterns (like "ab…ab" → predict "ab").
+            </p>
+            
+            <div class="insight">
+                <div class="insight-title">🎯 Key Insight</div>
+                <p>
+                    RoPE allows the transformer to attend based on <em>relative position</em> (how far apart tokens are) 
+                    rather than absolute position (where they appear in the sequence). This is crucial for induction heads 
+                    to recognize patterns like "the same token appeared N positions ago."
+                </p>
+            </div>
+
+            <h3>Model Architecture</h3>
+            <table>
+                <tr><th>Parameter</th><th>Value</th><th>Description</th></tr>
+                <tr><td>Vocabulary</td><td>27 tokens</td><td>a-z plus space</td></tr>
+                <tr><td>Layers</td><td>2</td><td>Minimal for induction heads</td></tr>
+                <tr><td>Attention heads</td><td>4 per layer</td><td>Multiple pattern detectors</td></tr>
+                <tr><td>d_model</td><td>128</td><td>Embedding dimension</td></tr>
+                <tr><td>d_head</td><td>32</td><td>Per-head dimension</td></tr>
+                <tr><td>Total params</td><td>~124K</td><td>Toy-scale model</td></tr>
+            </table>
+        </section>
+
+        <section id="rope">
+            <h2>2. RoPE: Rotary Position Embeddings</h2>
+            
+            <h3>The Problem</h3>
+            <p>
+                Standard transformers add position embeddings to token embeddings. But this makes attention depend on 
+                <em>absolute position</em>, which is bad for copying patterns — you want "token at position 5 attends to 
+                similar token at position 2" to work the same way regardless of where in the sequence this happens.
+            </p>
+
+            <h3>The Solution</h3>
+            <p>
+                RoPE <strong>rotates</strong> query and key vectors in 2D planes based on their position. The key property: 
+                the dot product between a query at position <em>m</em> and key at position <em>n</em> depends only on 
+                <strong>(m − n)</strong>, their relative distance.
+            </p>
+
+            <h3>The Equations (from Chris's notes)</h3>
+            
+            <div class="math-block">
+                <div class="label">Rotation Frequencies</div>
+                <p>$$\\theta_i = \\frac{1}{\\text{base}^{2i/d_{\\text{head}}}} \\quad \\text{for } i = 0, 1, \\ldots, \\frac{d_{\\text{head}}}{2} - 1$$</p>
+                <p>With base = 10000, this gives frequencies ranging from very fast (local patterns) to very slow (global patterns).</p>
+            </div>
+
+            <div class="math-block">
+                <div class="label">RoPE Rotation</div>
+                <p>For a vector <strong>x</strong> at position <strong>m</strong>, and for each pair of dimensions (2i, 2i+1):</p>
+                <p>$$\\text{RoPE}(x, m)_{2i} = x_{2i} \\cos(m \\theta_i) - x_{2i+1} \\sin(m \\theta_i)$$</p>
+                <p>$$\\text{RoPE}(x, m)_{2i+1} = x_{2i} \\sin(m \\theta_i) + x_{2i+1} \\cos(m \\theta_i)$$</p>
+            </div>
+
+            <div class="math-block">
+                <div class="label">Attention Score</div>
+                <p>$$\\text{score}(q_m, k_n) = \\text{RoPE}(q, m) \\cdot \\text{RoPE}(k, n) = f(q, k, m - n)$$</p>
+                <p>The crucial result: the score depends only on the <strong>relative position</strong> (m − n), not absolute positions.</p>
+            </div>
+
+            <div class="insight">
+                <div class="insight-title">💡 Why This Works for Induction</div>
+                <p>
+                    If "abc" appeared at positions 0-2 and again at positions 5-7, RoPE allows the model to recognize 
+                    that position 5 relates to position 0 in the same way position 6 relates to position 1 — same 
+                    relative offset, same attention pattern.
+                </p>
+            </div>
+        </section>
+
+        <section id="induction">
+            <h2>3. Induction Heads</h2>
+            
+            <h3>What Are Induction Heads?</h3>
+            <p>
+                Induction heads are attention heads that implement the algorithm: <em>"Look for previous instances of 
+                the current token, then predict what came next in those previous instances."</em>
+            </p>
+
+            <h3>Example: [abc][abc] Pattern</h3>
+            <p>Given input: <code>a b c a b c</code></p>
+            <p>When predicting the token after the second "a" (position 3):</p>
+            <ol>
+                <li>The induction head attends from position 3 to position 0 (both are "a")</li>
+                <li>This retrieves information: "after 'a' at position 0 came 'b'"</li>
+                <li>The model predicts "b" as the next token</li>
+            </ol>
+
+            <div class="math-block">
+                <div class="label">Attention Pattern for Induction</div>
+                <p>For an induction head, the attention matrix shows:</p>
+                <ul>
+                    <li><strong>Previous token component:</strong> Attends to position (i − 1) — standard "look back" behavior</li>
+                    <li><strong>Induction component:</strong> When the current token appeared before, attend to what followed that previous instance</li>
+                </ul>
+                <p>This creates <strong>off-diagonal stripes</strong> in the attention heatmap.</p>
+            </div>
+
+            <h3>The Two-Layer Structure</h3>
+            <div class="step">
+                <span class="step-num">Layer 0 (Previous Token Heads)</span>
+                <p>Attend to the previous position. This allows the model to know "what token came before this one" 
+                everywhere in the sequence.</p>
+            </div>
+            <div class="step">
+                <span class="step-num">Layer 1 (Induction Heads)</span>
+                <p>Use the information from Layer 0 to find where the current token appeared before, and copy the 
+                token that followed those previous instances.</p>
+            </div>
+        </section>
+
+        <section id="reverse-engineering">
+            <h2>4. Reverse Engineering the Toy Model</h2>
+            
+            <h3>What We Found</h3>
+            <p>
+                By analyzing the learned weights of our toy 2-layer RoPE transformer, we can verify it actually 
+                learned induction heads:
+            </p>
+
+            <h4>W_Q and W_K Analysis</h4>
+            <p>
+                The query and key weight matrices show structure that enables position-relative matching. 
+                The attention patterns reveal:
+            </p>
+            <ul>
+                <li><strong>Head 0 in Layer 0:</strong> Previous token head (attends to position i−1)</li>
+                <li><strong>Head 2 in Layer 1:</strong> Induction head (attends to matching tokens and copies next token)</li>
+            </ul>
+
+            <h4>Verifying the Circuit</h4>
+            <p>
+                We can verify the induction circuit by:
+            </p>
+            <ol>
+                <li>Feeding the model [abc][abc] patterns</li>
+                <li>Checking that Layer 0 outputs contain "previous token" information</li>
+                <li>Verifying Layer 1 induction heads attend correctly</li>
+                <li>Confirming predictions match the induction pattern</li>
+            </ol>
+
+            <div class="insight">
+                <div class="insight-title">🔍 Reverse Engineering Insight</div>
+                <p>
+                    The W_Q and W_K matrices decompose into components that correspond to:
+                    (1) matching query tokens to key tokens (content matching), and 
+                    (2) RoPE providing position-relative information. 
+                    The combination enables the full induction algorithm.
+                </p>
+            </div>
+        </section>
+
+        <section id="interactive">
+            <h2>5. Interactive Exploration</h2>
+            
+            <p>
+                Explore RoPE and induction heads interactively with our visualization tools. 
+                See the math in action on real transformer computations.
+            </p>
+
+            <a href="rope_demo.html" class="viz-link">🌀 Launch RoPE Interactive Demo →</a>
+            
+            <p style="margin-top: 1rem;">
+                <a href="reverse_engineering_report.html" style="color: var(--accent2);">
+                    📄 View Full Reverse Engineering Report
+                </a>
+            </p>
+        </section>
+
+        <div class="back">
+            <a href="/">← Back to main page</a>
+        </div>
+    </div>
+</body>
+</html>
