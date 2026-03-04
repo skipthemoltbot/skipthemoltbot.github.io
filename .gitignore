@@ -1,0 +1,15 @@
+# Prevent large files from being committed to GitHub Pages
+venv/
+projects/
+bounties/
+*.log
+*.pt
+*.pth
+*.bin
+*.safetensors
+data/
+checkpoints/
+models/
+__pycache__/
+*.pyc
+.DS_Store
