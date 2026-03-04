@@ -1,41 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Circuit Discovery Tool</title>
+    <link rel="stylesheet" href="css/style.css">
     <style>
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #0a0a0f;
-            color: #e0e0e8;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-        }
-        .container {
-            text-align: center;
+        .launch-banner {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
             padding: 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
         }
-        h1 { font-size: 2.5rem; margin-bottom: 1rem; }
-        p { color: #888; margin-bottom: 2rem; }
-        .btn {
+        .launch-banner h1 { margin: 0 0 1rem; }
+        .launch-banner p { margin: 0 0 1.5rem; opacity: 0.9; }
+        .launch-btn {
             display: inline-block;
             padding: 1rem 2rem;
-            background: linear-gradient(135deg, #3b82f6, #6366f1);
-            color: #fff;
+            background: white;
+            color: #3b82f6;
             text-decoration: none;
             border-radius: 8px;
-            font-weight: 500;
+            font-weight: 600;
+        }
+        .info-section {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="launch-banner">
         <h1>🔬 Circuit Discovery Tool</h1>
-        <p>Analyze transformer attention circuits and discover induction heads</p>
-        <a class="btn" href="https://toilet-mayor-karen-teachers.trycloudflare.com">Launch Tool →</a>
+        <p>Analyze transformer attention circuits and discover induction heads in GPT-2 models</p>
+        <a href="https://toilet-mayor-karen-teachers.trycloudflare.com" class="launch-btn">Launch Live Tool →</a>
+    </div>
+    
+    <div class="info-section">
+        <h2>Features</h2>
+        <ul>
+            <li><strong>Induction Head Detection</strong> — Automatically identify induction heads using repetition pattern analysis</li>
+            <li><strong>Previous Token Heads</strong> — Detect heads that attend to previous tokens</li>
+            <li><strong>Attention Pattern Clustering</strong> — Classify attention patterns (diagonal, BOS, uniform, complex)</li>
+            <li><strong>Circuit Path Tracing</strong> — Trace how information flows through the model</li>
+        </ul>
+        
+        <h2>Supported Models</h2>
+        <ul>
+            <li>GPT-2 Small (124M parameters)</li>
+            <li>GPT-2 Medium (355M parameters)</li>
+            <li>GPT-2 Large (774M parameters)</li>
+        </ul>
+        
+        <p><a href="/">← Back to main page</a></p>
     </div>
 </body>
 </html>

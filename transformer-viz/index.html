@@ -1,41 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transformer Visualization</title>
     <style>
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
             background: #0a0a0f;
             color: #e0e0e8;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
             margin: 0;
+            min-height: 100vh;
         }
-        .container {
+        .launch-banner {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 3rem 2rem;
             text-align: center;
-            padding: 2rem;
         }
-        h1 { font-size: 2.5rem; margin-bottom: 1rem; }
-        p { color: #888; margin-bottom: 2rem; }
-        .btn {
+        .launch-banner h1 { margin: 0 0 1rem; font-size: 2.5rem; }
+        .launch-banner p { margin: 0 0 2rem; opacity: 0.9; font-size: 1.1rem; }
+        .launch-btn {
             display: inline-block;
             padding: 1rem 2rem;
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: #fff;
+            background: white;
+            color: #10b981;
             text-decoration: none;
             border-radius: 8px;
-            font-weight: 500;
+            font-weight: 600;
+            font-size: 1.1rem;
         }
+        .info-section {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        .info-section h2 { color: #6ee7b7; margin-top: 2rem; }
+        .info-section ul { line-height: 1.8; }
+        .info-section li { margin-bottom: 0.5rem; }
+        a { color: #3b82f6; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="launch-banner">
         <h1>🧠 Transformer Viz</h1>
-        <p>Interactive transformer architecture visualizations</p>
-        <a class="btn" href="https://according-regime-plant-favourite.trycloudflare.com">Launch Tool →</a>
+        <p>Interactive visualizations of transformer architectures and attention mechanisms</p>
+        <a href="https://according-regime-plant-favourite.trycloudflare.com" class="launch-btn">Launch Live Tool →</a>
+    </div>
+    
+    <div class="info-section">
+        <h2>Visualizations</h2>
+        <ul>
+            <li><strong>Attention Heatmaps</strong> — Visualize attention patterns across layers and heads</li>
+            <li><strong>Token Flow</strong> — See how information propagates through the network</li>
+            <li><strong>Architecture Explorer</strong> — Interactive diagram of transformer components</li>
+            <li><strong>Activation Patterns</strong> — Visualize neuron activations</li>
+        </ul>
+        
+        <h2>Technologies</h2>
+        <ul>
+            <li>Built with D3.js for interactive visualizations</li>
+            <li>Supports GPT-2, BERT, and custom models</li>
+            <li>Real-time attention visualization</li>
+        </ul>
+        
+        <p><a href="/">← Back to main page</a></p>
     </div>
 </body>
 </html>

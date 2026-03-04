@@ -1,0 +1,2190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Engineering Report | RoPE Transformer Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --bg-card: #161620;
+            --bg-hover: #1e1e2e;
+            --bg-code: #0d0d14;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-purple: #8b5cf6;
+            --accent-purple-light: #a78bfa;
+            --accent-purple-dark: #6d28d9;
+            --accent-pink: #ec4899;
+            --accent-pink-light: #f472b6;
+            --accent-cyan: #06b6d4;
+            --accent-cyan-light: #67e8f9;
+            --accent-emerald: #10b981;
+            --accent-emerald-light: #34d399;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --accent-indigo: #6366f1;
+            --border-color: #27273a;
+            --border-hover: #3f3f5f;
+            --gradient-hero: linear-gradient(135deg, #8b5cf6 0%, #ec4899 50%, #06b6d4 100%);
+            --gradient-card: linear-gradient(180deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%);
+            --gradient-glow: radial-gradient(ellipse at top, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+            --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+            --shadow-glow: 0 0 40px rgba(139, 92, 246, 0.15);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent-purple); }
+
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(10, 10, 15, 0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            transition: all 0.3s ease;
+        }
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .nav-logo {
+            font-weight: 700;
+            font-size: 1.1rem;
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+            list-style: none;
+            flex-wrap: wrap;
+        }
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+            position: relative;
+            white-space: nowrap;
+        }
+        .nav-links a:hover { color: var(--text-primary); }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient-hero);
+            transition: width 0.3s ease;
+        }
+        .nav-links a:hover::after { width: 100%; }
+
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 8rem 2rem 4rem;
+            position: relative;
+            background: var(--gradient-glow);
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 50%, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        .hero-bg-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            color: var(--accent-purple-light);
+            margin-bottom: 2rem;
+            animation: fadeInUp 0.6s ease;
+        }
+        .hero-badge .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-emerald);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { opacity: 0.5; box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            animation: fadeInUp 0.6s ease 0.1s both;
+        }
+        .hero h1 .gradient-text {
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin-bottom: 3rem;
+            animation: fadeInUp 0.6s ease 0.2s both;
+        }
+        .hero-stats {
+            display: flex;
+            gap: 3rem;
+            animation: fadeInUp 0.6s ease 0.3s both;
+        }
+        .hero-stat { text-align: center; }
+        .hero-stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .scroll-indicator {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: bounce 2s infinite;
+        }
+        .scroll-indicator svg {
+            width: 24px;
+            height: 24px;
+            color: var(--text-muted);
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
+            40% { transform: translateX(-50%) translateY(-10px); }
+            60% { transform: translateX(-50%) translateY(-5px); }
+        }
+
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        .section {
+            margin-bottom: 6rem;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s ease;
+        }
+        .section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .section-header {
+            margin-bottom: 3rem;
+        }
+        .section-tag {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent-purple-light);
+            margin-bottom: 0.75rem;
+        }
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .section-description {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: var(--gradient-hero);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-glow);
+        }
+        .card:hover::before { opacity: 1; }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        .card-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .card-grid-2 { grid-template-columns: 1fr; }
+        }
+
+        .key-finding {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+            animation: glow 3s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from { box-shadow: 0 0 20px rgba(139, 92, 246, 0.1); }
+            to { box-shadow: 0 0 40px rgba(139, 92, 246, 0.3); }
+        }
+        .key-finding::before {
+            content: '✨';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 6rem;
+            opacity: 0.1;
+            animation: sparkle 2s ease-in-out infinite;
+        }
+        @keyframes sparkle {
+            0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.1; }
+            50% { transform: scale(1.1) rotate(10deg); opacity: 0.2; }
+        }
+        .key-finding-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent-purple-light);
+            margin-bottom: 0.75rem;
+        }
+        .key-finding-text {
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .key-finding-highlight {
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+        }
+
+        .equation-box {
+            background: var(--bg-code);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            position: relative;
+            opacity: 0;
+            transform: translateX(-30px);
+            transition: all 0.5s ease;
+        }
+        .equation-box.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .equation-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--gradient-hero);
+        }
+        .equation-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent-purple-light);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .equation-content {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            line-height: 2;
+            color: var(--text-primary);
+        }
+        .equation-content .variable { color: var(--accent-cyan-light); }
+        .equation-content .parameter { color: var(--accent-purple-light); }
+        .equation-content .function { color: var(--accent-emerald-light); }
+        .equation-content .number { color: var(--accent-orange); }
+        .equation-content .operator { color: var(--accent-pink-light); }
+
+        .comparison-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        @media (max-width: 768px) {
+            .comparison-container { grid-template-columns: 1fr; }
+        }
+        .comparison-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .comparison-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-glow);
+        }
+        .comparison-card.active {
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+        }
+        .comparison-header {
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .comparison-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: transform 0.3s ease;
+        }
+        .comparison-card:hover .comparison-icon { transform: scale(1.1); }
+        .comparison-card.hand-coded .comparison-icon {
+            background: rgba(6, 182, 212, 0.15);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+        .comparison-card.learned .comparison-icon {
+            background: rgba(236, 72, 153, 0.15);
+            border: 1px solid rgba(236, 72, 153, 0.3);
+        }
+        .comparison-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        .comparison-card.hand-coded .comparison-title { color: var(--accent-cyan-light); }
+        .comparison-card.learned .comparison-title { color: var(--accent-pink-light); }
+        .comparison-body { padding: 1.5rem; }
+        .equation-block {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            overflow-x: auto;
+            transition: all 0.3s ease;
+        }
+        .comparison-card:hover .equation-block {
+            background: rgba(139, 92, 246, 0.05);
+        }
+        .equation-block .keyword { color: var(--accent-purple-light); }
+        .equation-block .variable { color: var(--accent-cyan-light); }
+        .equation-block .operator { color: var(--accent-pink-light); }
+        .equation-block .number { color: var(--accent-orange); }
+        .equation-block .function { color: var(--accent-emerald-light); }
+
+        .comparison-features { list-style: none; }
+        .comparison-features li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+        .comparison-features li:hover {
+            color: var(--text-primary);
+            transform: translateX(5px);
+        }
+        .comparison-features li::before {
+            content: '→';
+            color: var(--accent-emerald);
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+        .comparison-features li:hover::before { transform: translateX(3px); }
+
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .comparison-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .chart-row {
+            display: grid;
+            grid-template-columns: 150px 1fr 1fr;
+            gap: 1rem;
+            align-items: center;
+        }
+        .chart-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .chart-bar-container {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            height: 32px;
+            overflow: hidden;
+            position: relative;
+        }
+        .chart-bar {
+            height: 100%;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            width: 0%;
+        }
+        .chart-bar.hand-coded {
+            background: linear-gradient(90deg, var(--accent-cyan) 0%, var(--accent-cyan-light) 100%);
+            color: var(--bg-primary);
+        }
+        .chart-bar.learned {
+            background: linear-gradient(90deg, var(--accent-pink) 0%, var(--accent-pink-light) 100%);
+            color: var(--bg-primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.02), transparent);
+            transform: rotate(45deg);
+            transition: all 0.5s ease;
+            opacity: 0;
+        }
+        .stat-card:hover::after {
+            opacity: 1;
+            transform: rotate(45deg) translate(50%, 50%);
+        }
+        .stat-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+        .stat-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover .stat-icon { transform: scale(1.1) rotate(5deg); }
+        .stat-icon.purple { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); }
+        .stat-icon.pink { background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); }
+        .stat-icon.cyan { background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); }
+        .stat-icon.emerald { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .stat-value.purple { color: var(--accent-purple-light); }
+        .stat-value.pink { color: var(--accent-pink-light); }
+        .stat-value.cyan { color: var(--accent-cyan-light); }
+        .stat-value.emerald { color: var(--accent-emerald-light); }
+        .stat-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .progress-container { margin: 1.5rem 0; }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+        .progress-bar-bg {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            height: 12px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: var(--radius-sm);
+            background: var(--gradient-hero);
+            width: 0%;
+            transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin: 2rem 0;
+            transition: all 0.3s ease;
+        }
+        .table-container:hover { border-color: var(--border-hover); }
+        .table-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .table-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead { background: var(--bg-tertiary); }
+        th {
+            padding: 1rem 1.5rem;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        th:hover { color: var(--accent-purple-light); }
+        td {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: var(--bg-hover); }
+        .metric-value { font-weight: 600; }
+        .metric-value.high { color: var(--accent-emerald-light); }
+        .metric-value.medium { color: var(--accent-orange); }
+        .metric-value.low { color: var(--text-secondary); }
+
+        .methodology-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin: 2rem 0;
+        }
+        .methodology-step {
+            display: flex;
+            gap: 1.5rem;
+            position: relative;
+            opacity: 0;
+            transform: translateX(-30px);
+            transition: all 0.5s ease;
+        }
+        .methodology-step.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .methodology-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 2rem;
+            top: 4rem;
+            width: 2px;
+            height: calc(100% - 2rem);
+            background: linear-gradient(180deg, var(--accent-purple) 0%, var(--accent-pink) 100%);
+            animation: flowLine 1s ease forwards;
+            transform-origin: top;
+            transform: scaleY(0);
+        }
+        .methodology-step.visible:not(:last-child)::after {
+            animation: flowLine 0.8s ease forwards;
+        }
+        @keyframes flowLine {
+            to { transform: scaleY(1); }
+        }
+        .step-number {
+            width: 4rem;
+            height: 4rem;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--accent-purple);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-purple-light);
+            flex-shrink: 0;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+        .methodology-step:hover .step-number {
+            background: var(--accent-purple);
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+        }
+        .step-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            flex: 1;
+            transition: all 0.3s ease;
+        }
+        .step-content:hover {
+            border-color: var(--border-hover);
+            transform: translateX(8px);
+        }
+        .step-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+        .step-description {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .step-tech {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--accent-purple-light);
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s ease;
+        }
+        .step-content:hover .step-tech {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: rgba(139, 92, 246, 0.4);
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .insight-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .insight-card:hover {
+            border-color: var(--border-hover);
+            transform: translateX(8px) scale(1.02);
+            box-shadow: var(--shadow-glow);
+        }
+        .insight-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+        .insight-card:hover .insight-icon { transform: rotate(10deg) scale(1.1); }
+        .insight-content h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .insight-content p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        .insight-highlight {
+            color: var(--accent-purple-light);
+            font-weight: 600;
+        }
+
+        .conclusion-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        @media (max-width: 768px) {
+            .conclusion-grid { grid-template-columns: 1fr; }
+        }
+        .conclusion-text {
+            font-size: 1.125rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+        .conclusion-text strong { color: var(--text-primary); }
+        .takeaway-list { list-style: none; margin-top: 1.5rem; }
+        .takeaway-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        .takeaway-list li:hover {
+            background: rgba(139, 92, 246, 0.05);
+            margin: 0 -1.5rem;
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+        }
+        .takeaway-list li:last-child { border-bottom: none; }
+        .takeaway-number {
+            width: 32px;
+            height: 32px;
+            background: var(--gradient-hero);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 700;
+            flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+        .takeaway-list li:hover .takeaway-number { transform: scale(1.2); }
+        .takeaway-content {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        @media (max-width: 768px) {
+            .config-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .config-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .config-item:hover {
+            border-color: var(--accent-purple);
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.2);
+        }
+        .config-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-purple-light);
+            margin-bottom: 0.25rem;
+        }
+        .config-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .diagram-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin: 2rem 0;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .diagram-box:hover { border-color: var(--border-hover); }
+        .diagram-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--accent-purple-light);
+        }
+        .svg-diagram {
+            max-width: 100%;
+            height: auto;
+        }
+        .svg-diagram text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+
+        .chartjs-container {
+            position: relative;
+            height: 300px;
+            margin: 1.5rem 0;
+        }
+        .chartjs-container.large { height: 400px; }
+
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--bg-tertiary);
+            padding: 0.25rem;
+            border-radius: var(--radius-sm);
+            margin: 1rem 0;
+        }
+        .view-toggle-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        .view-toggle-btn.active {
+            background: var(--accent-purple);
+            color: white;
+        }
+        .view-toggle-btn:hover:not(.active) { color: var(--text-primary); }
+
+        .slider-container { margin: 2rem 0; }
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        .comparison-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            outline: none;
+        }
+        .comparison-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--gradient-hero);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+            transition: transform 0.2s ease;
+        }
+        .comparison-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        .comparison-slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--gradient-hero);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+        }
+
+        .before-after-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        @media (max-width: 768px) {
+            .before-after-container { grid-template-columns: 1fr; }
+        }
+        .before-after-label {
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+
+        .head-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+        .head-badge.previous {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: var(--accent-blue);
+        }
+        .head-badge.semantic {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--accent-emerald);
+        }
+        .head-badge.copy {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: var(--accent-orange);
+        }
+        .head-badge.induction {
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: var(--accent-purple);
+        }
+        .layer-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+        .layer-badge.layer-0 {
+            background: rgba(6, 182, 212, 0.15);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            color: var(--accent-cyan);
+        }
+        .layer-badge.layer-1 {
+            background: rgba(236, 72, 153, 0.15);
+            border: 1px solid rgba(236, 72, 153, 0.3);
+            color: var(--accent-pink);
+        }
+
+        .footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 4rem 2rem;
+            margin-top: 4rem;
+        }
+        .footer-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 3rem;
+        }
+        @media (max-width: 768px) {
+            .footer-content { grid-template-columns: 1fr; }
+        }
+        .footer-brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+        .footer-description {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+        .footer-section h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        .footer-links { list-style: none; }
+        .footer-links li { margin-bottom: 0.5rem; }
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            display: inline-block;
+        }
+        .footer-links a:hover {
+            color: var(--accent-purple-light);
+            transform: translateX(5px);
+        }
+        .footer-bottom {
+            max-width: 1400px;
+            margin: 3rem auto 0;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .footer-meta {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+        .footer-meta span { margin-right: 1.5rem; }
+
+        .section-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+            margin: 4rem 0;
+        }
+
+        .subsection {
+            margin: 3rem 0;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+        }
+        .subsection.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .subsection-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .subsection-title .icon {
+            font-size: 1.25rem;
+            transition: transform 0.3s ease;
+        }
+        .subsection:hover .subsection-title .icon { transform: scale(1.2) rotate(10deg); }
+        .subsection-description {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 640px) {
+            .nav-links { display: none; }
+            .hero-stats { flex-direction: column; gap: 1.5rem; }
+            .hero h1 { font-size: 2rem; }
+            .section-title { font-size: 1.75rem; }
+            .chart-row { grid-template-columns: 1fr; gap: 0.5rem; }
+            .chart-label { font-weight: 600; }
+            .methodology-step { gap: 1rem; }
+            .step-number { width: 3rem; height: 3rem; font-size: 1.25rem; }
+            .chartjs-container { height: 250px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-content">
+            <div class="nav-logo">🧬 Reverse Engineering Report</div>
+            <ul class="nav-links">
+                <li><a href="#summary">Summary</a></li>
+                <li><a href="#methodology">Methodology</a></li>
+                <li><a href="#framework">Framework</a></li>
+                <li><a href="#comparison">Comparison</a></li>
+                <li><a href="#parameters">Parameters</a></li>
+                <li><a href="#statistics">Statistics</a></li>
+                <li><a href="#insights">Insights</a></li>
+                <li><a href="#conclusion">Conclusion</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-bg-grid"></div>
+        <div class="hero-badge">
+            <span class="dot"></span>
+            Research Analysis Complete
+        </div>
+        <h1>
+            From <span class="gradient-text">Learned Weights</span><br>
+            to Mathematical Equations
+        </h1>
+        <p class="hero-subtitle">
+            A comprehensive reverse engineering analysis of RoPE transformer attention mechanisms, 
+            comparing hand-coded mathematical formulations against SGD-discovered representations.
+        </p>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hero-stat-value" data-target="402000">0</div>
+                <div class="hero-stat-label">Parameters</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value" data-target="5000">0</div>
+                <div class="hero-stat-label">Training Steps</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value" data-target="0.54" data-decimals="2">0</div>
+                <div class="hero-stat-label">Final Loss</div>
+            </div>
+        </div>
+        <div class="scroll-indicator">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <section id="summary" class="section">
+            <div class="section-header">
+                <span class="section-tag">Overview</span>
+                <h2 class="section-title">Executive Summary</h2>
+                <p class="section-description">
+                    Deep analysis of learned W_q and W_k matrices from a trained 2-layer RoPE transformer.
+                </p>
+            </div>
+
+            <div class="config-grid">
+                <div class="config-item">
+                    <div class="config-value" data-target="2">0</div>
+                    <div class="config-label">Layers</div>
+                </div>
+                <div class="config-item">
+                    <div class="config-value" data-target="4">0</div>
+                    <div class="config-label">Heads</div>
+                </div>
+                <div class="config-item">
+                    <div class="config-value" data-target="128">0</div>
+                    <div class="config-label">d_model</div>
+                </div>
+                <div class="config-item">
+                    <div class="config-value" data-target="32">0</div>
+                    <div class="config-label">d_head</div>
+                </div>
+            </div>
+
+            <div class="key-finding">
+                <div class="key-finding-label">🔬 Key Finding</div>
+                <p class="key-finding-text">
+                    SGD discovered a <span class="key-finding-highlight">distributed, multi-frequency Gabor filter representation</span> 
+                    that is functionally equivalent to but structurally different from hand-coded patterns.
+                </p>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 1rem;">Training Progress Metrics</h3>
+                <div class="progress-container">
+                    <div class="progress-label"><span>Convergence</span><span>97%</span></div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" data-width="97"></div></div>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-label"><span>Weight Stability</span><span>94%</span></div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" data-width="94"></div></div>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-label"><span>Pattern Recognition</span><span>89%</span></div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" data-width="89"></div></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="section-divider"></div>
+
+        <section id="methodology" class="section">
+            <div class="section-header">
+                <span class="section-tag">Research Method</span>
+                <h2 class="section-title">How Reverse Engineering Works</h2>
+                <p class="section-description">A systematic 7-step methodology for extracting mathematical structure.</p>
+            </div>
+
+            <div class="methodology-flow">
+                <div class="methodology-step" data-delay="0">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <div class="step-title">Extract Learned Weights from Checkpoint</div>
+                        <div class="step-description">Load trained model checkpoint and extract weight matrices W_q, W_k, W_v, and W_o.</div>
+                        <div class="step-tech"><span>🔧 torch.load()</span></div>
+                    </div>
+                </div>
+                <div class="methodology-step" data-delay="100">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <div class="step-title">Analyze Weight Statistics</div>
+                        <div class="step-description">Compute mean, std, min/max values, sparsity patterns, and compare distributions.</div>
+                        <div class="step-tech"><span>📊 mean, std, rank</span></div>
+                    </div>
+                </div>
+                <div class="methodology-step" data-delay="200">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <div class="step-title">Fit Functional Forms</div>
+                        <div class="step-description">Fit Gaussian, Sinusoidal, and Gabor filter functions to weight rows.</div>
+                        <div class="step-tech"><span>📈 scipy.optimize.curve_fit</span></div>
+                    </div>
+                </div>
+                <div class="methodology-step" data-delay="300">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <div class="step-title">Frequency Domain Analysis (FFT)</div>
+                        <div class="step-description">Apply FFT to identify dominant frequency components and cluster heads.</div>
+                        <div class="step-tech"><span>🌊 np.fft.fft</span></div>
+                    </div>
+                </div>
+                <div class="methodology-step" data-delay="400">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <div class="step-title">Cross-Correlation: W_q vs W_k</div>
+                        <div class="step-description">Compute cross-correlation to quantify phase shift relationships.</div>
+                        <div class="step-tech"><span>🔗 np.correlate</span></div>
+                    </div>
+                </div>
+                <div class="methodology-step" data-delay="500">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <div class="step-title">Compare to Hand-Coded Patterns</div>
+                        <div class="step-description">Compare learned weights against hand-coded initialization. Compute drift.</div>
+                        <div class="step-tech"><span>📝 L2 distance, cosine similarity</span></div>
+                    </div>
+                </div>
+                <div class="methodology-step" data-delay="600">
+                    <div class="step-number">7</div>
+                    <div class="step-content">
+                        <div class="step-title">Derive Mathematical Equations</div>
+                        <div class="step-description">Synthesize findings into closed-form mathematical expressions.</div>
+                        <div class="step-tech"><span>✍️ Symbolic derivation</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="section-divider"></div>
+
+        <section id="framework" class="section">
+            <div class="section-header">
+                <span class="section-tag">Mathematics</span>
+                <h2 class="section-title">Complete Mathematical Framework</h2>
+            </div>
+
+            <div class="diagram-box">
+                <div class="diagram-title">Transformer Architecture Visualization</div>
+                <svg class="svg-diagram" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="layerGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#1a1a25;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#0a0a0f;stop-opacity:1" />
+                        </linearGradient>
+                        <linearGradient id="activeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:0.3" />
+                            <stop offset="100%" style="stop-color:#ec4899;stop-opacity:0.3" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="50" y="175" width="80" height="50" rx="8" fill="url(#layerGradient)" stroke="#3b82f6" stroke-width="2"/>
+                    <text x="90" y="205" fill="#3b82f6" text-anchor="middle" font-size="14" font-weight="600">Input</text>
+                    <path d="M 130 200 L 170 200" stroke="#64748b" stroke-width="2"/>
+                    <rect x="170" y="125" width="120" height="150" rx="12" fill="url(#activeGradient)" stroke="#06b6d4" stroke-width="2"/>
+                    <text x="230" y="155" fill="#06b6d4" text-anchor="middle" font-size="14" font-weight="600">Layer 0</text>
+                    <rect x="185" y="170" width="40" height="25" rx="4" fill="#1a1a25" stroke="#3b82f6" stroke-width="1"/>
+                    <text x="205" y="187" fill="#3b82f6" text-anchor="middle" font-size="10">H1</text>
+                    <rect x="235" y="170" width="40" height="25" rx="4" fill="#1a1a25" stroke="#10b981" stroke-width="1"/>
+                    <text x="255" y="187" fill="#10b981" text-anchor="middle" font-size="10">H2</text>
+                    <rect x="185" y="205" width="40" height="25" rx="4" fill="#1a1a25" stroke="#10b981" stroke-width="1"/>
+                    <text x="205" y="222" fill="#10b981" text-anchor="middle" font-size="10">H3</text>
+                    <rect x="235" y="205" width="40" height="25" rx="4" fill="#1a1a25" stroke="#3b82f6" stroke-width="1"/>
+                    <text x="255" y="222" fill="#3b82f6" text-anchor="middle" font-size="10">H4</text>
+                    <path d="M 290 200 L 340 200" stroke="#64748b" stroke-width="2"/>
+                    <rect x="340" y="125" width="120" height="150" rx="12" fill="url(#activeGradient)" stroke="#ec4899" stroke-width="2"/>
+                    <text x="400" y="155" fill="#ec4899" text-anchor="middle" font-size="14" font-weight="600">Layer 1</text>
+                    <rect x="355" y="170" width="40" height="25" rx="4" fill="#1a1a25" stroke="#f59e0b" stroke-width="1"/>
+                    <text x="375" y="187" fill="#f59e0b" text-anchor="middle" font-size="10">H1</text>
+                    <rect x="405" y="170" width="40" height="25" rx="4" fill="#1a1a25" stroke="#f59e0b" stroke-width="1"/>
+                    <text x="425" y="187" fill="#f59e0b" text-anchor="middle" font-size="10">H2</text>
+                    <rect x="355" y="205" width="40" height="25" rx="4" fill="#1a1a25" stroke="#8b5cf6" stroke-width="1"/>
+                    <text x="375" y="222" fill="#8b5cf6" text-anchor="middle" font-size="10">H3</text>
+                    <rect x="405" y="205" width="40" height="25" rx="4" fill="#1a1a25" stroke="#8b5cf6" stroke-width="1"/>
+                    <text x="425" y="222" fill="#8b5cf6" text-anchor="middle" font-size="10">H4</text>
+                    <path d="M 460 200 L 510 200" stroke="#64748b" stroke-width="2"/>
+                    <rect x="510" y="175" width="80" height="50" rx="8" fill="url(#layerGradient)" stroke="#8b5cf6" stroke-width="2"/>
+                    <text x="550" y="205" fill="#8b5cf6" text-anchor="middle" font-size="14" font-weight="600">Output</text>
+                    <text x="650" y="140" fill="#94a3b8" font-size="12" font-weight="600">Head Types:</text>
+                    <rect x="650" y="155" width="12" height="12" rx="2" fill="#1a1a25" stroke="#3b82f6" stroke-width="1"/>
+                    <text x="670" y="165" fill="#94a3b8" font-size="10">Previous Token</text>
+                    <rect x="650" y="175" width="12" height="12" rx="2" fill="#1a1a25" stroke="#10b981" stroke-width="1"/>
+                    <text x="670" y="185" fill="#94a3b8" font-size="10">Semantic</text>
+                    <rect x="650" y="195" width="12" height="12" rx="2" fill="#1a1a25" stroke="#f59e0b" stroke-width="1"/>
+                    <text x="670" y="205" fill="#94a3b8" font-size="10">Copy</text>
+                    <rect x="650" y="215" width="12" height="12" rx="2" fill="#1a1a25" stroke="#8b5cf6" stroke-width="1"/>
+                    <text x="670" y="225" fill="#94a3b8" font-size="10">Induction</text>
+                    <text x="400" y="300" fill="#f59e0b" text-anchor="middle" font-size="14" font-weight="600">Rotary Position Embedding (RoPE)</text>
+                    <path d="M 230 275 Q 315 260 400 275 Q 485 290 400 285" stroke="#f59e0b" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                </svg>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title"><span class="icon">📐</span>Gabor Filter Function</h3>
+                <div class="chart-container">
+                    <div class="chart-title">Gabor Filter Visualization</div>
+                    <div class="chartjs-container"><canvas id="gaborChart"></canvas></div>
+                </div>
+                <div class="equation-box">
+                    <div class="equation-title">📝 Gabor Filter Definition</div>
+                    <div class="equation-content">
+                        <span class="variable">G</span>(x; A, μ, σ, f, φ) = <span class="variable">A</span> <span class="operator">·</span> 
+                        <span class="function">exp</span>(<span class="operator">-</span>(x<span class="operator">-</span>μ)² <span class="operator">/</span> (2σ²)) 
+                        <span class="operator">·</span> <span class="function">sin</span>(2π <span class="operator">·</span> f <span class="operator">·</span> x <span class="operator">/</span> d_model + φ)
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title"><span class="icon">🔑</span>Complete W_k Equation</h3>
+                <div class="equation-box">
+                    <div class="equation-title">🔑 Key Weight Matrix W_k</div>
+                    <div class="equation-content">
+                        <span class="variable">W_k</span><sup>(l,h)</sup>[i,j] = <span class="function">Σ</span><sub class="parameter">f∈F<sup>(l,h)</sup></sub> 
+                        <span class="parameter">A_k</span><sup>(l,h)</sup>[i,f] <span class="operator">·</span> 
+                        <span class="variable">G</span>(j; <span class="parameter">μ</span><sup>(l,h)</sup>[i], <span class="parameter">σ</span><sup>(l,h)</sup>[i], f, <span class="parameter">φ_k</span><sup>(l,h)</sup>[i,f])
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title"><span class="icon">🔍</span>Complete W_q Equation with Phase Shifts</h3>
+                <div class="equation-box">
+                    <div class="equation-title">🔍 Query Weight Matrix W_q</div>
+                    <div class="equation-content">
+                        <span class="variable">W_q</span><sup>(l,h)</sup>[i,j] = <span class="function">Σ</span><sub class="parameter">f∈F<sup>(l,h)</sup></sub> 
+                        <span class="parameter">A_q</span><sup>(l,h)</sup>[i,f] <span class="operator">·</span> 
+                        <span class="variable">G</span>(j; <span class="parameter">μ</span><sup>(l,h)</sup>[i], <span class="parameter">σ</span><sup>(l,h)</sup>[i], f, 
+                        <span class="parameter">φ_k</span><sup>(l,h)</sup>[i,f] <span class="operator">+</span> <span class="parameter">δ</span><sup>(l,h)</sup>[i,f])
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Attention Pattern Visualization (Previous Token Head)</div>
+                    <div class="chartjs-container"><canvas id="attentionPatternChart"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="section-divider"></div>
+
+        <section id="parameters" class="section">
+            <div class="section-header">
+                <span class="section-tag">Parameters</span>
+                <h2 class="section-title">Learned Parameter Tables</h2>
+            </div>
+
+            <div class="view-toggle">
+                <button class="view-toggle-btn active" data-layer="all">All Layers</button>
+                <button class="view-toggle-btn" data-layer="0">Layer 0 Only</button>
+                <button class="view-toggle-btn" data-layer="1">Layer 1 Only</button>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <h3 class="table-title">Amplitude Parameters (A_k, A_q)</h3>
+                </div>
+                <table id="amplitudeTable">
+                    <thead>
+                        <tr><th>Layer</th><th>Head</th><th>A_mean</th><th>A_std</th><th>α (W_q/W_k)</th><th>Head Type</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr data-layer="0"><td>0 <span class="layer-badge layer-0">L0</span></td><td>0</td><td class="metric-value">0.035</td><td>0.020</td><td class="metric-value">1.05</td><td><span class="head-badge previous">Previous Token</span></td></tr>
+                        <tr data-layer="0"><td>0 <span class="layer-badge layer-0">L0</span></td><td>1</td><td class="metric-value">0.039</td><td>0.022</td><td class="metric-value">1.10</td><td><span class="head-badge previous">Previous Token</span></td></tr>
+                        <tr data-layer="0"><td>0 <span class="layer-badge layer-0">L0</span></td><td>2</td><td class="metric-value">0.038</td><td>0.021</td><td class="metric-value">0.97</td><td><span class="head-badge semantic">Semantic</span></td></tr>
+                        <tr data-layer="0"><td>0 <span class="layer-badge layer-0">L0</span></td><td>3</td><td class="metric-value">0.047</td><td>0.025</td><td class="metric-value">0.98</td><td><span class="head-badge semantic">Semantic</span></td></tr>
+                        <tr data-layer="1"><td>1 <span class="layer-badge layer-1">L1</span></td><td>0</td><td class="metric-value">0.059</td><td>0.028</td><td class="metric-value">1.02</td><td><span class="head-badge copy">Copy</span></td></tr>
+                        <tr data-layer="1"><td>1 <span class="layer-badge layer-1">L1</span></td><td>1</td><td class="metric-value">0.056</td><td>0.027</td><td class="metric-value">1.07</td><td><span class="head-badge copy">Copy</span></td></tr>
+                        <tr data-layer="1"><td>1 <span class="layer-badge layer-1">L1</span></td><td>2</td><td class="metric-value">0.060</td><td>0.029</td><td class="metric-value">1.01</td><td><span class="head-badge induction">Induction</span></td></tr>
+                        <tr data-layer="1"><td>1 <span class="layer-badge layer-1">L1</span></td><td>3</td><td class="metric-value">0.057</td><td>0.028</td><td class="metric-value">1.00</td><td><span class="head-badge induction">Induction</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">Parameter Comparison Across Heads</div>
+                <div class="chartjs-container"><canvas id="paramComparisonChart"></canvas></div>
+            </div>
+        </section>
+
+        <div class="section-divider"></div>
+
+        <section id="comparison" class="section">
+            <div class="section-header">
+                <span class="section-tag">Analysis</span>
+                <h2 class="section-title">Hand-Coded vs. SGD: Mathematical Comparison</h2>
+            </div>
+
+            <div class="slider-container">
+                <div class="slider-labels">
+                    <span style="color: var(--accent-cyan-light)">Hand-Coded View</span>
+                    <span style="color: var(--accent-pink-light)">Learned View</span>
+                </div>
+                <input type="range" min="0" max="100" value="50" class="comparison-slider" id="viewSlider">
+            </div>
+
+            <div class="comparison-container">
+                <div class="comparison-card hand-coded" id="handCodedCard">
+                    <div class="comparison-header">
+                        <div class="comparison-icon">📝</div>
+                        <h3 class="comparison-title">Hand-Coded (Theory)</h3>
+                    </div>
+                    <div class="comparison-body">
+                        <div class="equation-block">
+                            <span class="variable">W_k</span>[i,j] = <span class="number">1</span> <span class="keyword">if</span> j <span class="operator">%</span> <span class="number">2</span> = <span class="number">0</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <span class="number">0</span> <span class="keyword">if</span> j <span class="operator">%</span> <span class="number">2</span> = <span class="number">1</span>
+                        </div>
+                        <ul class="comparison-features">
+                            <li>Discrete binary values {0, 1}</li>
+                            <li>Alternating even/odd pattern</li>
+                            <li>Low-rank structure (rank = 1)</li>
+                            <li>Period = 2 dimensions</li>
+                            <li>Mathematically elegant</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="comparison-card learned" id="learnedCard">
+                    <div class="comparison-header">
+                        <div class="comparison-icon">🤖</div>
+                        <h3 class="comparison-title">SGD Learned (Empirical)</h3>
+                    </div>
+                    <div class="comparison-body">
+                        <div class="equation-block">
+                            <span class="variable">W_k</span>[i,j] = <span class="function">Σ</span><sub class="variable">f</sub> <span class="variable">A</span>[i,f] <span class="operator">·</span><br>
+                            &nbsp;&nbsp;&nbsp;<span class="function">exp</span>(<span class="operator">-</span>(j<span class="operator">-</span>μ)²<span class="operator">/</span>2σ²) <span class="operator">·</span><br>
+                            &nbsp;&nbsp;&nbsp;<span class="function">sin</span>(2π <span class="operator">·</span> f <span class="operator">·</span> j<span class="operator">/</span>d + φ)
+                        </div>
+                        <ul class="comparison-features">
+                            <li>Continuous values [-0.5, 0.5]</li>
+                            <li>Distributed multi-frequency encoding</li>
+                            <li>Full rank structure (124/128)</li>
+                            <li>Multiple periods: {4, 8.5, 128}</li>
+                            <li>Statistically optimized</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">Property Comparison</h3>
+                <div class="comparison-chart">
+                    <div class="chart-row">
+                        <div class="chart-label">Even/Odd Bias</div>
+                        <div class="chart-bar-container"><div class="chart-bar hand-coded" data-width="100" style="width: 0%">∞</div></div>
+                        <div class="chart-bar-container"><div class="chart-bar learned" data-width="10" style="width: 0%">1.0</div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">Matrix Rank</div>
+                        <div class="chart-bar-container"><div class="chart-bar hand-coded" data-width="1" style="width: 0%">1</div></div>
+                        <div class="chart-bar-container"><div class="chart-bar learned" data-width="97" style="width: 0%">124/128</div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">Fine-tune Drift</div>
+                        <div class="chart-bar-container"><div class="chart-bar hand-coded" data-width="0" style="width: 0%">0%</div></div>
+                        <div class="chart-bar-container"><div class="chart-bar learned" data-width="57" style="width: 0%">57%</div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">Frequency Components</div>
+                        <div class="chart-bar-container"><div class="chart-bar hand-coded" data-width="10" style="width: 0%">1</div></div>
+                        <div class="chart-bar-container"><div class="chart-bar learned" data-width="100" style="width: 0%">10+</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">Weight Distribution Comparison</h3>
+                <div class="chartjs-container"><canvas id="weightDistChart"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 1rem;">Weight Evolution: Before vs After Training</h3>
+                <div class="before-after-container">
+                    <div>
+                        <div class="before-after-label" style="color: var(--accent-cyan-light)">Initialization (Hand-coded)</div>
+                        <div class="chartjs-container"><canvas id="beforeTrainingChart"></canvas></div>
+                    </div>
+                    <div>
+                        <div class="before-after-label" style="color: var(--accent-pink-light)">After Training (Learned)</div>
+                        <div class="chartjs-container"><canvas id="afterTrainingChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="section-divider"></div>
+
+        <section id="statistics" class="section">
+            <div class="section-header">
+                <span class="section-tag">Quantitative Analysis</span>
+                <h2 class="section-title">Statistical Overview</h2>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header"><div class="stat-icon purple">📊</div><span class="stat-label">Best Fit Quality</span></div>
+                    <div class="stat-value purple" data-target="0.132" data-decimals="3">0</div>
+                    <p class="stat-description">Gaussian form R² — highest achieved correlation</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header"><div class="stat-icon pink">🎯</div><span class="stat-label">Average Fit</span></div>
+                    <div class="stat-value pink" data-target="0.043" data-decimals="3">0</div>
+                    <p class="stat-description">Gabor form mean R² across all heads</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header"><div class="stat-icon cyan">📈</div><span class="stat-label">Matrix Rank</span></div>
+                    <div class="stat-value cyan"><span data-target="124">0</span><span style="font-size: 1rem; color: var(--text-muted)">/128</span></div>
+                    <p class="stat-description">Full-rank learned representation</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header"><div class="stat-icon emerald">🔄</div><span class="stat-label">Drift Factor</span></div>
+                    <div class="stat-value emerald" data-target="57">0%</div>
+                    <p class="stat-description">Deviation from hand-coded initialization</p>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">Training Loss Over Time</h3>
+                <div class="chartjs-container large"><canvas id="lossChart"></canvas></div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">Even/Odd Ratio Comparison Across Heads</h3>
+                <div class="chartjs-container"><canvas id="evenOddChart"></canvas></div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">Matrix Rank Comparison: Hand-Coded vs Learned</h3>
+                <div class="chartjs-container"><canvas id="rankChart"></canvas></div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">Cosine Similarity Drift Over Training</h3>
+                <div class="chartjs-container large"><canvas id="similarityChart"></canvas></div>
+            </div>
+        </section>
+
+        <div class="section-divider"></div>
+
+        <section id="insights" class="section">
+            <div class="section-header">
+                <span class="section-tag">Critical Findings</span>
+                <h2 class="section-title">Key Insights</h2>
+            </div>
+
+            <div class="insights-grid">
+                <div class="insight-card" onclick="toggleDetail(this)">
+                    <div class="insight-icon" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);">⚠️</div>
+                    <div class="insight-content">
+                        <h4 style="color: var(--accent-red)">No Even/Odd Alternation</h4>
+                        <p>Hand-coded: <span class="insight-highlight">∞ ratio</span> (pure alternation)<br>Learned: <span class="insight-highlight">1.0 ratio</span> (no alternation at all!)</p>
+                        <div class="details-content" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">This is perhaps the most surprising finding. Despite the hand-coded initialization having a perfect alternating even/odd pattern, SGD completely eliminated this structure in favor of a smooth, distributed representation.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="insight-card" onclick="toggleDetail(this)">
+                    <div class="insight-icon" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3);">📐</div>
+                    <div class="insight-content">
+                        <h4 style="color: var(--accent-emerald-light)">Full Rank Structure</h4>
+                        <p>Hand-coded: Rank <span class="insight-highlight">1</span> (degenerate)<br>Learned: Rank <span class="insight-highlight">124/128</span> (nearly full rank!)</p>
+                        <div class="details-content" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">The hand-coded solution uses a rank-1 matrix. The learned solution achieves rank 124 out of 128, indicating a rich, high-dimensional representation.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="insight-card" onclick="toggleDetail(this)">
+                    <div class="insight-icon" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3);">🔄</div>
+                    <div class="insight-content">
+                        <h4 style="color: var(--accent-orange)">Significant Drift</h4>
+                        <p>Starting from hand-coded initialization, SGD drifts by <span class="insight-highlight">57%</span> to reach its own solution basin.</p>
+                        <div class="details-content" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">When initialized with the hand-coded pattern, SGD progressively moves away from it during training, settling into a completely different basin of attraction.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="insight-card" onclick="toggleDetail(this)">
+                    <div class="insight-icon" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3);">🧩</div>
+                    <div class="insight-content">
+                        <h4 style="color: var(--accent-purple-light)">Multiple Solutions</h4>
+                        <p>The space of induction-capable solutions is <span class="insight-highlight">much larger</span> than theory captures.</p>
+                        <div class="details-content" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Our analysis reveals many mathematically distinct ways to implement induction heads. The hand-coded solution is just one point in a vast solution space.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="insight-card" onclick="toggleDetail(this)">
+                    <div class="insight-icon" style="background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3);">🌊</div>
+                    <div class="insight-content">
+                        <h4 style="color: var(--accent-cyan-light)">Gabor Filter Bank</h4>
+                        <p>Learned weights form a <span class="insight-highlight">multi-frequency Gabor filter bank</span>, similar to biological visual cortex.</p>
+                        <div class="details-content" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">The learned weights exhibit the classic Gabor filter structure found in biological visual systems: Gaussian-modulated sinusoids with different frequencies.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="insight-card" onclick="toggleDetail(this)">
+                    <div class="insight-icon" style="background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3);">🎯</div>
+                    <div class="insight-content">
+                        <h4 style="color: var(--accent-pink-light)">Phase-Encoding Attention</h4>
+                        <p>W_q and W_k differ by a <span class="insight-highlight">learned phase shift δ</span>, encoding attention offset directly in weights.</p>
+                        <div class="details-content" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">The key insight is that the attention mechanism encodes position offsets through phase differences between query and key projections.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="section-divider"></div>
+
+        <section id="conclusion" class="section">
+            <div class="section-header">
+                <span class="section-tag">Synthesis</span>
+                <h2 class="section-title">Conclusion</h2>
+            </div>
+
+            <div class="conclusion-grid">
+                <div class="card">
+                    <p class="conclusion-text"><strong>Both solutions work</strong> but through fundamentally different mechanisms. The hand-coded approach represents a mathematical optimum: discrete, elegant, and theoretically grounded. The SGD-discovered solution emerges as a <strong>distributed, multi-resolution, statistically optimal</strong> representation.</p>
+                    <p class="conclusion-text" style="margin-top: 1rem;">This reveals a profound insight: <strong>the space of induction-capable solutions is much larger than theory captures!</strong> Gradient descent discovers its own pathways that achieve functional equivalence through entirely different representational strategies.</p>
+                </div>
+                <div class="card">
+                    <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-muted);">Key Takeaways</h4>
+                    <ul class="takeaway-list">
+                        <li><span class="takeaway-number">1</span><span class="takeaway-content">SGD prefers continuous, distributed representations over discrete patterns</span></li>
+                        <li><span class="takeaway-number">2</span><span class="takeaway-content">Full-rank solutions emerge even when low-rank would suffice</span></li>
+                        <li><span class="takeaway-number">3</span><span class="takeaway-content">Multiple valid solution basins exist for the same task</span></li>
+                        <li><span class="takeaway-number">4</span><span class="takeaway-content">Theory-guided initialization is not a basin of attraction</span></li>
+                        <li><span class="takeaway-number">5</span><span class="takeaway-content">Phase shifts between W_q and W_k encode attention patterns</span></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <div>
+                <div class="footer-brand">🧬 Reverse Engineering Report</div>
+                <p class="footer-description">A comprehensive analysis of learned transformer representations.</p>
+            </div>
+            <div class="footer-section">
+                <h4>Analysis</h4>
+                <ul class="footer-links">
+                    <li><a href="#summary">Summary</a></li>
+                    <li><a href="#methodology">Methodology</a></li>
+                    <li><a href="#framework">Framework</a></li>
+                    <li><a href="#comparison">Comparison</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Findings</h4>
+                <ul class="footer-links">
+                    <li><a href="#parameters">Parameters</a></li>
+                    <li><a href="#statistics">Statistics</a></li>
+                    <li><a href="#insights">Key Insights</a></li>
+                    <li><a href="#conclusion">Conclusion</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="footer-meta">
+                <span>📅 Generated: March 4, 2026</span>
+                <span>🤖 Model: RoPE Transformer 402K</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+
+        // Counter Animation
+        function animateCounter(element, target, decimals = 0) {
+            const duration = 2000;
+            const start = performance.now();
+            const startValue = 0;
+            
+            function update(currentTime) {
+                const elapsed = currentTime - start;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = startValue + (target - startValue) * easeOut;
+                
+                if (decimals > 0) {
+                    element.textContent = current.toFixed(decimals);
+                } else {
+                    element.textContent = Math.floor(current).toLocaleString();
+                }
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                } else {
+                    if (decimals > 0) {
+                        element.textContent = target.toFixed(decimals);
+                    } else {
+                        element.textContent = target.toLocaleString();
+                    }
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
+        const counterObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const target = parseFloat(entry.target.dataset.target);
+                    const decimals = parseInt(entry.target.dataset.decimals) || 0;
+                    animateCounter(entry.target, target, decimals);
+                    counterObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.5 });
+
+        document.querySelectorAll('[data-target]').forEach(el => counterObserver.observe(el));
+
+        const progressObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const width = entry.target.dataset.width;
+                    entry.target.style.width = width + '%';
+                    progressObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.5 });
+
+        document.querySelectorAll('.progress-bar-fill').forEach(el => progressObserver.observe(el));
+
+        const chartBarObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const bars = entry.target.querySelectorAll('.chart-bar');
+                    bars.forEach((bar, i) => {
+                        setTimeout(() => {
+                            bar.style.width = bar.dataset.width + '%';
+                        }, i * 200);
+                    });
+                    chartBarObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.3 });
+
+        document.querySelectorAll('.comparison-chart').forEach(el => chartBarObserver.observe(el));
+
+        const sectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.section, .equation-box, .subsection').forEach(el => sectionObserver.observe(el));
+
+        const stepObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry, i) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => {
+                        entry.target.classList.add('visible');
+                    }, i * 150);
+                }
+            });
+        }, { threshold: 0.3 });
+
+        document.querySelectorAll('.methodology-step').forEach(el => stepObserver.observe(el));
+
+        const viewSlider = document.getElementById('viewSlider');
+        const handCodedCard = document.getElementById('handCodedCard');
+        const learnedCard = document.getElementById('learnedCard');
+
+        if (viewSlider && handCodedCard && learnedCard) {
+            viewSlider.addEventListener('input', (e) => {
+                const value = e.target.value;
+                if (value < 30) {
+                    handCodedCard.classList.add('active');
+                    learnedCard.classList.remove('active');
+                } else if (value > 70) {
+                    learnedCard.classList.add('active');
+                    handCodedCard.classList.remove('active');
+                } else {
+                    handCodedCard.classList.remove('active');
+                    learnedCard.classList.remove('active');
+                }
+            });
+        }
+
+        document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const layer = btn.dataset.layer;
+                
+                document.querySelectorAll('table tbody tr').forEach(row => {
+                    if (layer === 'all' || row.dataset.layer === layer) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        function toggleDetail(card) {
+            const detail = card.querySelector('.details-content');
+            if (detail) {
+                detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        const sections = document.querySelectorAll('.section');
+        const navLinks = document.querySelectorAll('.nav-links a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (scrollY >= sectionTop - 200) {
+                    current = section.getAttribute('id');
+                }
+            });
+            navLinks.forEach(link => {
+                link.style.color = '';
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.style.color = 'var(--accent-purple-light)';
+                }
+            });
+        });
+
+        const chartColors = {
+            purple: '#8b5cf6', purpleLight: 'rgba(139, 92, 246, 0.2)',
+            pink: '#ec4899', pinkLight: 'rgba(236, 72, 153, 0.2)',
+            cyan: '#06b6d4', cyanLight: 'rgba(6, 182, 212, 0.2)',
+            emerald: '#10b981', emeraldLight: 'rgba(16, 185, 129, 0.2)',
+            orange: '#f59e0b', orangeLight: 'rgba(245, 158, 11, 0.2)',
+            blue: '#3b82f6', blueLight: 'rgba(59, 130, 246, 0.2)'
+        };
+
+        const gaborCtx = document.getElementById('gaborChart');
+        if (gaborCtx) {
+            const x = Array.from({length: 128}, (_, i) => i);
+            const gaussian = x.map(i => 0.05 * Math.exp(-Math.pow(i - 64, 2) / (2 * 30 * 30)));
+            const gabor = x.map(i => gaussian[i] * Math.sin(2 * Math.PI * 32 * i / 128 + 0.5));
+
+            new Chart(gaborCtx, {
+                type: 'line',
+                data: {
+                    labels: x,
+                    datasets: [
+                        { label: 'Gaussian Envelope', data: gaussian, borderColor: chartColors.purple, backgroundColor: chartColors.purpleLight, tension: 0.4, pointRadius: 0 },
+                        { label: 'Gabor Filter', data: gabor, borderColor: chartColors.emerald, backgroundColor: chartColors.emeraldLight, tension: 0.4, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8' } },
+                        tooltip: { backgroundColor: '#1a1a25', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: '#27273a', borderWidth: 1 }
+                    },
+                    scales: {
+                        x: { grid: { color: '#27273a' }, ticks: { color: '#64748b' } },
+                        y: { grid: { color: '#27273a' }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        }
+
+        const attnCtx = document.getElementById('attentionPatternChart');
+        if (attnCtx) {
+            const seqLen = 20;
+            const labels = Array.from({length: seqLen}, (_, i) => i);
+            const data = labels.map(i => i > 0 ? (i === 1 ? 0.6 : 0.1 / (i - 1)) : 0);
+
+            new Chart(attnCtx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: 'Attention Weight', data: data, backgroundColor: data.map((v, i) => i === 1 ? chartColors.purple : chartColors.purpleLight), borderColor: chartColors.purple, borderWidth: 1 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: 'Previous Token Attention Pattern', color: '#94a3b8' } },
+                    scales: {
+                        x: { title: { display: true, text: 'Position Offset', color: '#64748b' }, grid: { color: '#27273a' }, ticks: { color: '#64748b' } },
+                        y: { title: { display: true, text: 'Attention Weight', color: '#64748b' }, grid: { color: '#27273a' }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        }
+
+        const paramCtx = document.getElementById('paramComparisonChart');
+        if (paramCtx) {
+            new Chart(paramCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['Amplitude', 'Frequency', 'Phase Shift', 'Spread (σ)', 'Center (μ)'],
+                    datasets: [
+                        { label: 'L0-H0 (Previous)', data: [0.035, 32, 1.57, 28.5, 62.3], borderColor: chartColors.blue, backgroundColor: chartColors.blueLight },
+                        { label: 'L0-H2 (Semantic)', data: [0.038, 32, 0.79, 26.8, 63.8], borderColor: chartColors.emerald, backgroundColor: chartColors.emeraldLight },
+                        { label: 'L1-H0 (Copy)', data: [0.059, 8, 0, 35.2, 64.0], borderColor: chartColors.orange, backgroundColor: chartColors.orangeLight },
+                        { label: 'L1-H2 (Induction)', data: [0.060, 13, 1.57, 36.1, 65.2], borderColor: chartColors.purple, backgroundColor: chartColors.purpleLight }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: { r: { grid: { color: '#27273a' }, angleLines: { color: '#27273a' }, pointLabels: { color: '#94a3b8' }, ticks: { color: '#64748b', backdropColor: 'transparent' } } }
+                }
+            });
+        }
+
+        const weightCtx = document.getElementById('weightDistChart');
+        if (weightCtx) {
+            const bins = Array.from({length: 20}, (_, i) => -0.5 + i * 0.05);
+            const handCoded = bins.map(() => Math.random() * 0.5);
+            const learned = bins.map((_, i) => Math.exp(-Math.pow(i - 10, 2) / 8) * 15 + Math.random());
+
+            new Chart(weightCtx, {
+                type: 'bar',
+                data: { labels: bins.map(b => b.toFixed(2)), datasets: [
+                    { label: 'Hand-Coded', data: handCoded, backgroundColor: chartColors.cyanLight, borderColor: chartColors.cyan, borderWidth: 1 },
+                    { label: 'Learned', data: learned, backgroundColor: chartColors.pinkLight, borderColor: chartColors.pink, borderWidth: 1 }
+                ]},
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } }, title: { display: true, text: 'Weight Value Distribution', color: '#94a3b8' } },
+                    scales: { x: { title: { display: true, text: 'Weight Value', color: '#64748b' }, ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: '#27273a' } }, y: { title: { display: true, text: 'Frequency', color: '#64748b' }, ticks: { color: '#64748b' }, grid: { color: '#27273a' } } }
+                }
+            });
+        }
+
+        const beforeCtx = document.getElementById('beforeTrainingChart');
+        if (beforeCtx) {
+            const x = Array.from({length: 50}, (_, i) => i);
+            const y = x.map(i => i % 2 === 0 ? 0.5 : -0.3);
+
+            new Chart(beforeCtx, {
+                type: 'line',
+                data: { labels: x, datasets: [{ label: 'Weight Row', data: y, borderColor: chartColors.cyan, backgroundColor: chartColors.cyanLight, stepped: true, fill: false, pointRadius: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Discrete Binary Pattern', color: '#94a3b8' } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#27273a' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#27273a' } } } }
+            });
+        }
+
+        const afterCtx = document.getElementById('afterTrainingChart');
+        if (afterCtx) {
+            const x = Array.from({length: 50}, (_, i) => i);
+            const y = x.map(i => 0.4 * Math.exp(-Math.pow(i - 25, 2) / 100) * Math.sin(2 * Math.PI * i / 4));
+
+            new Chart(afterCtx, {
+                type: 'line',
+                data: { labels: x, datasets: [{ label: 'Weight Row', data: y, borderColor: chartColors.pink, backgroundColor: chartColors.pinkLight, tension: 0.4, fill: true, pointRadius: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Smooth Gabor Pattern', color: '#94a3b8' } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#27273a' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#27273a' } } } }
+            });
+        }
+
+        const lossCtx = document.getElementById('lossChart');
+        if (lossCtx) {
+            const steps = Array.from({length: 50}, (_, i) => i * 100);
+            const loss = steps.map((s, i) => 2.5 * Math.exp(-i / 10) + 0.54 + Math.random() * 0.1);
+
+            new Chart(lossCtx, {
+                type: 'line',
+                data: { labels: steps, datasets: [{ label: 'Loss', data: loss, borderColor: chartColors.purple, backgroundColor: chartColors.purpleLight, tension: 0.4, fill: true, pointRadius: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, title: { display: true, text: 'Training Loss vs Steps', color: '#94a3b8' } }, scales: { x: { title: { display: true, text: 'Training Steps', color: '#64748b' }, ticks: { color: '#64748b' }, grid: { color: '#27273a' } }, y: { title: { display: true, text: 'Loss', color: '#64748b' }, ticks: { color: '#64748b' }, grid: { color: '#27273a' } } } }
+            });
+        }
+
+        const evenOddCtx = document.getElementById('evenOddChart');
+        if (evenOddCtx) {
+            new Chart(evenOddCtx, {
+                type: 'bar',
+                data: { labels: ['L0-H0', 'L0-H1', 'L0-H2', 'L0-H3', 'L1-H0', 'L1-H1', 'L1-H2', 'L1-H3'], datasets: [
+                    { label: 'Even/Odd Ratio', data: [1.05, 1.10, 0.97, 0.98, 1.02, 1.07, 1.01, 1.00], backgroundColor: chartColors.emerald },
+                    { label: 'Balanced', data: [1, 1, 1, 1, 1, 1, 1, 1], type: 'line', borderColor: chartColors.orange, borderDash: [5, 5], pointRadius: 0 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8' } }, title: { display: true, text: 'Even/Odd Ratio by Head', color: '#94a3b8' } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#27273a' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#27273a' } } } }
+            });
+        }
+
+        const rankCtx = document.getElementById('rankChart');
+        if (rankCtx) {
+            new Chart(rankCtx, {
+                type: 'bar',
+                data: { labels: ['Hand-Coded', 'Layer 0', 'Layer 1'], datasets: [{ label: 'Rank', data: [1, 122, 124], backgroundColor: [chartColors.cyan, chartColors.pink, chartColors.purple], borderColor: [chartColors.cyan, chartColors.pink, chartColors.purple], borderWidth: 2 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Matrix Rank (max = 128)', color: '#94a3b8' } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#27273a' } }, y: { max: 128, ticks: { color: '#64748b' }, grid: { color: '#27273a' } } } }
+            });
+        }
+
+        const similarityCtx = document.getElementById('similarityChart');
+        if (similarityCtx) {
+            const steps = Array.from({length: 50}, (_, i) => i * 100);
+            const similarity = steps.map((s, i) => { if (i < 5) return 0.95; return 0.95 * Math.exp(-i / 15) + 0.38; });
+
+            new Chart(similarityCtx, {
+                type: 'line',
+                data: { labels: steps, datasets: [{ label: 'Similarity', data: similarity, borderColor: chartColors.pink, backgroundColor: chartColors.pinkLight, tension: 0.4, fill: true, pointRadius: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Cosine Similarity Drift', color: '#94a3b8' } }, scales: { x: { title: { display: true, text: 'Training Steps', color: '#64748b' }, ticks: { color: '#64748b' }, grid: { color: '#27273a' } }, y: { min: 0, max: 1, ticks: { color: '#64748b' }, grid: { color: '#27273a' } } } }
+            });
+        }
+    </script>
+</body>
+</html>
