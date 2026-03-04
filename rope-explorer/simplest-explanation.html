@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simplest Explanation: How Previous Token Heads Work</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+            color: #e0e0e8;
+            min-height: 100vh;
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #6ee7b7, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section h2 {
+            color: #6ee7b7;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section h3 {
+            color: #93c5fd;
+            font-size: 1.1rem;
+            margin: 1.5rem 0 0.8rem;
+        }
+
+        .section p {
+            margin-bottom: 1rem;
+            color: #c0c0d0;
+        }
+
+        .analogy-box {
+            background: linear-gradient(135deg, rgba(110, 231, 183, 0.1), rgba(59, 130, 246, 0.1));
+            border-left: 4px solid #6ee7b7;
+            padding: 1.5rem;
+            border-radius: 0 12px 12px 0;
+            margin: 1.5rem 0;
+        }
+
+        .analogy-box h3 {
+            color: #6ee7b7;
+            margin-top: 0;
+        }
+
+        .formula {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+            font-size: 0.95rem;
+            margin: 1rem 0;
+            color: #a78bfa;
+            overflow-x: auto;
+        }
+
+        .highlight {
+            background: rgba(167, 139, 250, 0.2);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .comparison-box {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .comparison-box h4 {
+            color: #6ee7b7;
+            margin-bottom: 0.8rem;
+            font-size: 1.1rem;
+        }
+
+        .comparison-box.purple h4 {
+            color: #a78bfa;
+        }
+
+        .comparison-box ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .comparison-box li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .comparison-box li:last-child {
+            border-bottom: none;
+        }
+
+        .key-insight {
+            background: linear-gradient(135deg, rgba(147, 197, 253, 0.15), rgba(110, 231, 183, 0.1));
+            border: 2px solid rgba(147, 197, 253, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .key-insight h3 {
+            color: #93c5fd;
+            margin: 0 0 1rem;
+        }
+
+        .key-insight p {
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .nav {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav a {
+            color: #6ee7b7;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(110, 231, 183, 0.3);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .nav a:hover {
+            background: rgba(110, 231, 183, 0.1);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 600px) {
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 Previous Token Heads: Simplest Explanation</h1>
+            <p>Why does alternating +1/-1 work? Why does SGD's distributed solution also work?</p>
+        </div>
+
+        <div class="section">
+            <h2>🎯 The Goal</h2>
+            <p>We want a <span class="highlight">Previous Token Head</span>: a mechanism where position <strong>m</strong> pays attention to position <strong>m-1</strong> (the token immediately before it).</p>
+            
+            <div class="formula">
+                score(m, n) should be LARGE when n = m - 1<br>
+                score(m, n) should be SMALL when n ≠ m - 1
+            </div>
+        </div>
+
+        <div class="analogy-box">
+            <h3>🧠 The Party Analogy</h3>
+            <p>Imagine everyone at a party, each facing a different angle based on their position:</p>
+            <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                <li>Person at position 1 faces 10°</li>
+                <li>Person at position 2 faces 20°</li>
+                <li>Person at position 3 faces 30°</li>
+            </ul>
+            <p style="margin-top: 1rem;"><strong>The trick:</strong> Even though they're all facing different absolute angles, person 2 (at 20°) can "see" person 1 (at 10°) because the <span class="highlight">difference</span> is exactly 10° — the same angle difference that always occurs between adjacent positions!</p>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ How RoPE Enables This</h2>
+            <p><strong>RoPE (Rotary Position Embedding)</strong> rotates each vector by an angle proportional to its position:</p>
+            
+            <div class="formula">
+                Rotate(x, position m) → x rotated by angle m·θ
+            </div>
+
+            <h3>Step-by-step:</h3>
+            <p><strong>1.</strong> Take embedding of token at position <strong>m</strong> and rotate it by <strong>m·θ</strong></p>
+            <p><strong>2.</strong> Take embedding of token at position <strong>n</strong> and rotate it by <strong>n·θ</strong></p>
+            <p><strong>3.</strong> Compute dot product: <span class="highlight">(rotated_m) · (rotated_n)</span></p>
+            
+            <div class="key-insight">
+                <h3>✨ Magic Happens</h3>
+                <p>This dot product depends ONLY on the <strong>relative position</strong> (m - n), not the absolute positions m or n!</p>
+            </div>
+
+            <div class="formula">
+                Score = Σᵢ [cos((m-n)·θᵢ) · (content_match) + sin((m-n)·θᵢ) · (orthogonal_component)]
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔑 The Key Question</h2>
+            <p>So we need query at position m and key at position m-1 to have a dot product that aligns with the RoPE phase for offset Δ = 1.</p>
+            
+            <div class="formula">
+                cos(θᵢ) and sin(θᵢ) are "known" by the model (fixed rotation frequencies)<br>
+                So we need x·W_q and x·W_k to produce vectors that align after rotation by these angles
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚖️ Two Solutions to the Same Problem</h2>
+            
+            <div class="comparison">
+                <div class="comparison-box">
+                    <h4>👨‍💻 Chris's Hand-Coded</h4>
+                    <ul>
+                        <li><strong>W[i,j] = ±1</strong> alternating</li>
+                        <li>Creates <strong>orthogonal basis</strong></li>
+                        <li>Perfect alignment with RoPE phases</li>
+                        <li>Easy to understand</li>
+                        <li>Fragile (must be exact)</li>
+                    </ul>
+                </div>
+                <div class="comparison-box purple">
+                    <h4>🤖 SGD's Learned</h4>
+                    <ul>
+                        <li><strong>W[i,j] ∈ ℝ</strong> distributed</li>
+                        <li>Creates <strong>linear combinations</strong></li>
+                        <li>Statistical alignment with RoPE</li>
+                        <li>Harder to interpret</li>
+                        <li>More robust</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Why Both Work:</h3>
+            <p><strong>Hand-coded:</strong> Uses basis vectors that, when rotated by RoPE at offset 1, align perfectly. Like having binoculars pointed exactly at the right angle.</p>
+            
+            <p><strong>Learned:</strong> Uses combinations of vectors that, <em>on average</em>, produce the same effective direction after RoPE rotation. Like having regular vision that still lets you see position 1 from position 2.</p>
+
+            <div class="key-insight">
+                <h3>🎯 Functional Equivalence</h3>
+                <p>Both achieve: <span class="highlight">score(m, m-1) >> score(m, n≠m-1)</span></p>
+                <p>Same result, different paths through weight space!</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📝 Simple Example</h2>
+            <p>Consider the same word "hello" appearing at positions 5 and 20:</p>
+            
+            <div class="formula">
+                x₅ = embedding("hello")<br>
+                x₂₀ = embedding("hello")<br>
+                Same content, different positions
+            </div>
+
+            <p><strong>After RoPE:</strong></p>
+            <ul style="margin-left: 1.5rem;">
+                <li>Query at position 20 looks for matches at all positions</li>
+                <li>RoPE makes the dot product depend on (20 - n)</li>
+                <li>When n = 19, the phase aligns → <strong>HIGH score</strong></li>
+                <li>When n = 5, phases don't align → <strong>LOW score</strong></li>
+            </ul>
+
+            <div class="key-insight">
+                <h3>🎉 Result</h3>
+                <p>Position 20 attends to position 19 (previous token), not position 5 (same content but wrong distance)!</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔬 The "Why" Behind Learned Weights</h2>
+            <p>When SGD trains on the task "predict next token given context":</p>
+            <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                <li>It discovers that looking at the previous token helps</li>
+                <li>It finds W_q and W_k that make RoPE produce large scores at offset 1</li>
+                <li>The weights don't need to be alternating ±1 — they just need to work!</li>
+                <li>SGD finds a nearby solution in the high-dimensional weight space</li>
+            </ol>
+
+            <div class="formula" style="margin-top: 1rem;">
+                Hand-coded: W[i,j] ∈ {-1, +1} (one specific solution)<br>
+                SGD learns: W[i,j] ∈ ℝ (one of infinitely many solutions)<br>
+                Both satisfy: E[score(m, m-1)] is maximized
+            </div>
+        </div>
+
+        <div class="nav">
+            <a href="/rope-explorer/">← Back to RoPE Explorer</a>
+            <a href="/rope-explorer/math-derivation.html">Full Math Derivations →</a>
+        </div>
+    </div>
+</body>
+</html>
