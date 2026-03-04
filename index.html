@@ -80,40 +80,6 @@
             border-color: rgba(110, 231, 183, 0.4);
         }
 
-        .links {
-            display: flex;
-            gap: 1.2rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .links a {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.65rem 1.4rem;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 0.95rem;
-            font-weight: 500;
-            transition: transform 0.15s, box-shadow 0.15s;
-        }
-
-        .links a:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        }
-
-        .link-chris {
-            background: linear-gradient(135deg, #3b82f6, #6366f1);
-            color: #fff;
-        }
-
-        .link-lab {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: #fff;
-        }
-
         .projects {
             display: grid;
             gap: 1rem;
@@ -155,6 +121,53 @@
             color: #888;
         }
 
+        .links {
+            display: flex;
+            gap: 1.2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+
+        .links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.65rem 1.4rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .links a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .link-chris {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: #fff;
+        }
+
+        .link-lab {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+        }
+
+        .status-live {
+            color: #10b981;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .status-offline {
+            color: #888;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
         .footer {
             margin-top: 3rem;
             font-size: 0.8rem;
@@ -187,24 +200,27 @@
         <h2 style="font-size: 1.4rem; margin: 2.5rem 0 1rem; color: #a0a0b0;">🛠️ Projects</h2>
         
         <div class="projects">
-            <a href="/circuit-discovery/" class="project-card">
+            <a href="https://toilet-mayor-karen-teachers.trycloudflare.com" class="project-card" target="_blank" rel="noopener">
                 <span class="project-icon">🔬</span>
                 <span class="project-name">Circuit Discovery</span>
                 <span class="project-desc">Analyze transformer attention circuits</span>
+                <span class="status-live">● Live</span>
             </a>
-            <a href="/transformer-viz/" class="project-card">
+            <div class="project-card" style="opacity: 0.5; cursor: not-allowed;">
                 <span class="project-icon">🧠</span>
                 <span class="project-name">Transformer Viz</span>
                 <span class="project-desc">Interactive transformer visualizations</span>
-            </a>
-            <a href="/rope-explorer/" class="project-card">
+                <span class="status-offline">○ Offline</span>
+            </div>
+            <div class="project-card" style="opacity: 0.5; cursor: not-allowed;">
                 <span class="project-icon">🌀</span>
                 <span class="project-name">RoPE Explorer</span>
                 <span class="project-desc">Rotary position embedding analysis</span>
-            </a>
+                <span class="status-offline">○ Offline</span>
+            </div>
         </div>
 
-        <div class="links" style="margin-top: 2rem;">
+        <div class="links">
             <a href="https://wendlerc.github.io" class="link-chris" target="_blank" rel="noopener">
                 👤 Chris Wendler
             </a>
