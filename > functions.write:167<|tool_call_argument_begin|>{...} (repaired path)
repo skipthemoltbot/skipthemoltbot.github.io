@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mathematical Derivation: Hand-Coded vs. Learned Induction Heads</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg2: #12121a;
+            --bg3: #1a1a25;
+            --surface: #1e1e2e;
+            --border: #2a2a40;
+            --text: #e0e0f0;
+            --text2: #a0a0c0;
+            --accent: #8b5cf6;
+            --accent2: #a78bfa;
+            --cyan: #06b6d4;
+            --green: #10b981;
+            --orange: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.8;
+        }
+        .hero {
+            background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, var(--accent2), var(--cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .hero .subtitle {
+            color: var(--text2);
+            font-size: 1.1rem;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .nav {
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-inner {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .nav a {
+            color: var(--text2);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav a:hover { color: var(--accent2); }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        h2 {
+            font-size: 1.8rem;
+            color: var(--accent2);
+            margin: 3rem 0 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+        h3 {
+            font-size: 1.4rem;
+            color: var(--cyan);
+            margin: 2.5rem 0 1rem;
+        }
+        h4 {
+            font-size: 1.2rem;
+            color: var(--green);
+            margin: 2rem 0 0.75rem;
+        }
+        p { margin-bottom: 1.2rem; color: var(--text2); }
+        .equation-box {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+        }
+        .equation-box .label {
+            color: var(--orange);
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
+        }
+        .insight {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 182, 212, 0.08));
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-left: 4px solid var(--green);
+            border-radius: 0 12px 12px 0;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .insight-title {
+            color: var(--green);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .code-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            color: var(--text);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--accent2); background: var(--bg2); font-weight: 600; }
+        .step {
+            background: var(--bg2);
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .step-num {
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 0.9rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        a { color: var(--accent2); }
+        .back { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>Mathematical Derivation</h1>
+        <p class="subtitle">Hand-Coded vs. Learned Induction Heads in RoPE Transformers</p>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="#attention">1. Attention</a>
+            <a href="#rope">2. RoPE</a>
+            <a href="#relative">3. Relative Position</a>
+            <a href="#previous">4. Previous Token</a>
+            <a href="#induction">5. Induction Heads</a>
+            <a href="#comparison">6. Comparison</a>
+            <a href="/rope-explorer/">← Back</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <section id="attention">
+            <h2>1. Foundation: Self-Attention Mechanism</h2>
+            
+            <p>The attention mechanism in transformers is defined as:</p>
+            
+            <div class="equation-box">
+                <div class="label">Equation 1: Self-Attention</div>
+                $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
+            </div>
+
+            <p>Where the query, key, and value matrices are computed as:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 2: Q, K, V Computation</div>
+                $$Q = X W_q \quad K = X W_k \quad V = X W_v$$
+            </div>
+
+            <p>For a single token at position <strong>m</strong> with embedding $\mathbf{x}_m \in \mathbb{R}^{1 \times d_{\text{model}}}$:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 3: Per-Token Computation</div>
+                $$\mathbf{q}_m = \mathbf{x}_m W_q \in \mathbb{R}^{1 \times d_{\text{model}}}$$
+                $$\mathbf{k}_n = \mathbf{x}_n W_k \in \mathbb{R}^{1 \times d_{\text{model}}}$$
+            </div>
+
+            <div class="insight">
+                <div class="insight-title">Key Point</div>
+                <p>Without position encoding, the dot product $\mathbf{q}_m \mathbf{k}_n^T$ depends only on the <strong>content</strong> of tokens at positions m and n, not their positions. This makes the model permutation-invariant — "dog bites cat" equals "cat bites dog".</p>
+            </div>
+        </section>
+
+        <section id="rope">
+            <h2>2. Rotary Position Embeddings (RoPE)</h2>
+
+            <h3>2.1 Rotation Frequencies</h3>
+            
+            <p>RoPE defines position-dependent rotation frequencies:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 4: RoPE Frequencies</div>
+                $$\theta_i = \text{base}^{-2i/d_{\text{head}}} \quad \text{for } i \in \left[0, 1, \ldots, \frac{d_{\text{head}}}{2} - 1\right]$$
+            </div>
+
+            <p>With base = 10000, this creates a spectrum from fast (local) to slow (global) frequencies.</p>
+
+            <h3>2.2 Rotation Transformation</h3>
+
+            <p>For each pair of dimensions $(2i, 2i+1)$ at position $m$:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 5: Query Rotation</div>
+                $$q'_{2i} = q_{2i} \cos(m\theta_i) - q_{2i+1} \sin(m\theta_i)$$
+                $$q'_{2i+1} = q_{2i} \sin(m\theta_i) + q_{2i+1} \cos(m\theta_i)$$
+            </div>
+
+            <div class="equation-box">
+                <div class="label">Equation 6: Key Rotation</div>
+                $$k'_{2i} = k_{2i} \cos(n\theta_i) - k_{2i+1} \sin(n\theta_i)$$
+                $$k'_{2i+1} = k_{2i} \sin(n\theta_i) + k_{2i+1} \cos(n\theta_i)$$
+            </div>
+
+            <h3>2.3 Matrix Rotation Form</h3>
+
+            <p>This can be expressed as applying 2D rotation matrices:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 7: Rotation Matrix</div>
+                $$R(m, \theta_i) = \begin{bmatrix} \cos(m\theta_i) & -\sin(m\theta_i) \\ \\ \sin(m\theta_i) & \cos(m\theta_i) \end{bmatrix}$$
+            </div>
+
+            <div class="equation-box">
+                <div class="label">Equation 8: Matrix Application</div>
+                $$\begin{bmatrix} q'_{2i} \\ \\ q'_{2i+1} \end{bmatrix} = R(m, \theta_i) \begin{bmatrix} q_{2i} \\ \\ q_{2i+1} \end{bmatrix}$$
+            </div>
+        </section>
+
+        <section id="relative">
+            <h2>3. Proof: Relative Position Dependency</h2>
+
+            <h3>3.1 The Key Property</h3>
+
+            <p>The dot product of rotated query (position m) and key (position n):</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 9: RoPE Dot Product</div>
+                $$\mathbf{q}'^T \mathbf{k}' = \sum_{i=0}^{d_{\text{head}}/2 - 1} \left(q'_{2i} k'_{2i} + q'_{2i+1} k'_{2i+1}\right)$$
+            </div>
+
+            <h3>3.2 Derivation</h3>
+
+            <p>Substituting the RoPE transformations:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 10: Expanded Form</div>
+                $$\mathbf{q}'^T \mathbf{k}' = \sum_i \left[\cos(m\theta_i)\cos(n\theta_i)(q_{2i}k_{2i} + q_{2i+1}k_{2i+1})\right.$$
+                $$+ \left.\sin(m\theta_i)\sin(n\theta_i)(q_{2i}k_{2i} + q_{2i+1}k_{2i+1})\right.$$
+                $$+ \left.\sin((n-m)\theta_i)(q_{2i}k_{2i+1} - q_{2i+1}k_{2i})\right]$$
+            </div>
+
+            <p>Using trigonometric identities $\cos A \cos B + \sin A \sin B = \cos(A-B)$:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 11: Critical Result</div>
+                $$\mathbf{q}'^T \mathbf{k}' = \sum_i \left[\cos((m-n)\theta_i)(q_{2i}k_{2i} + q_{2i+1}k_{2i+1}) + \sin((m-n)\theta_i)(q_{2i}k_{2i+1} - q_{2i+1}k_{2i})\right]$$
+            </div>
+
+            <div class="insight">
+                <div class="insight-title">💡 Critical Insight</div>
+                <p>The dot product depends <strong>ONLY</strong> on $(m - n)$ — the <strong>relative position</strong>! Absolute positions $m$ and $n$ appear only as their difference. This is the fundamental property that enables position-relative attention.</p>
+            </div>
+        </section>
+
+        <section id="previous">
+            <h2>4. Previous Token Head</h2>
+
+            <h3>4.1 Goal</h3>
+            <p>Create an attention head where position $m$ attends to position $(m-1)$ — the previous token.</p>
+
+            <h3>4.2 Hand-Coded Approach</h3>
+
+            <p>Chris's approach uses alternating weight patterns that align dimensions with RoPE phases:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 12: Hand-Coded W_q Pattern</div>
+                $$W_q^{\text{hand}} = \begin{bmatrix} +1 & -1 & +1 & -1 & \cdots \\ -1 & -1 & +1 & -1 & \cdots \\ \vdots & \vdots & \vdots & \vdots & \ddots \end{bmatrix}$$
+            </div>
+
+            <p>Formally, for dimension pair $i$:</p>
+            <div class="equation-box">
+                <div class="label">Equation 13: Alternating Pattern</div>
+                $$W_q[\text{row}, 2i] = (-1)^i \quad W_q[\text{row}, 2i+1] = (-1)^{i+1}$$
+            </div>
+
+            <h3>4.3 What SGD Learned</h3>
+
+            <p>From the trained checkpoint, extracted weights:</p>
+
+            <div class="code-block">
+W_q[0, :16] = [ 0.08, -0.10,  0.02, -0.04,  0.12,  0.02, -0.21,  0.07,
+                -0.20,  0.07, -0.08,  0.09,  0.09,  0.10, -0.10, -0.21]
+
+W_k[0, :16] = [ 0.11,  0.09, -0.12,  0.02,  0.22,  0.05, -0.15,  0.12,
+                -0.07, -0.11, -0.17,  0.03,  0.06,  0.07, -0.14, -0.04]
+            </div>
+
+            <div class="equation-box">
+                <div class="label">Equation 14: Learned Pattern Structure</div>
+                $$W_q^{\text{learned}}[i,j] \in \mathbb{R} \quad \text{(continuous values)}$$
+            </div>
+        </section>
+
+        <section id="induction">
+            <h2>5. Induction Head Architecture</h2>
+
+            <h3>5.1 Two-Layer Structure</h3>
+
+            <div class="step">
+                <span class="step-num">Layer 0: Previous Token Heads</span>
+                <p>Multiple heads learn to shift information one position back. Output at position $i$ contains "what token came before position $i$".</p>
+            </div>
+
+            <div class="step">
+                <span class="step-num">Layer 1: Induction Heads</span>
+                <p>Query attends to tokens with <strong>matching content</strong> AND <strong>appropriate relative position</strong>. Key provides position-shifted information from Layer 0.</p>
+            </div>
+
+            <h3>5.2 Example: Pattern [abc][abc]</h3>
+
+            <p>When predicting after the second "a" (position 3):</p>
+
+            <ol>
+                <li><strong>Layer 0</strong> at position 0 (first 'a'): outputs context info</li>
+                <li><strong>Layer 0</strong> at position 3 (second 'a'): outputs shifted info</li>
+                <li><strong>Layer 1</strong> recognizes: "token 'a' at position 3 matches token at position 0"</li>
+                <li><strong>RoPE</strong> enables attention: $\text{score}(3, 0) = f(3-0) = f(3)$</li>
+                <li><strong>Copied token</strong>: What followed position 0 → 'b'</li>
+            </ol>
+
+            <h3>5.3 Functional Form</h3>
+
+            <div class="equation-box">
+                <div class="label">Equation 15: Induction Score</div>
+                $$\text{score}(m, n) = \text{RoPE}(\mathbf{x}_m W_q, m) \cdot \text{RoPE}(\mathbf{x}_n W_k, n)$$
+            </div>
+
+            <p>For induction, we want large scores when:</p>
+            <ul>
+                <li>$\mathbf{x}_m = \mathbf{x}_n$ (same token content)</li>
+                <li>$m - n = \Delta$ (specific relative offset where pattern repeats)</li>
+            </ul>
+        </section>
+
+        <section id="comparison">
+            <h2>6. Hand-Coded vs. Learned: Mathematical Comparison</h2>
+
+            <h3>6.1 Functional Equivalence</h3>
+
+            <p>Both approaches solve the same optimization problem:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 16: Optimization Objective</div>
+                $$\max_{W_q, W_k} \mathbb{E}_{(m,n) \sim \text{pairs}}\left[\text{RoPE}(\mathbf{x}_m W_q, m) \cdot \text{RoPE}(\mathbf{x}_n W_k, n)\right]$$
+                $$\text{subject to: } m - n = \text{target\_offset}$$
+            </div>
+
+            <h3>6.2 Why Both Work</h3>
+
+            <p><strong>Hand-coded (orthogonal):</strong></p>
+            <div class="equation-box">
+                $$W_q^{\text{hand}}[i,j] \in \{+1, -1\} \quad \text{(discrete, orthogonal basis)}$$
+            </div>
+
+            <p><strong>Learned (distributed):</strong></p>
+            <div class="equation-box">
+                $$W_q^{\text{learned}}[i,j] \in \mathbb{R} \quad \text{(continuous, non-orthogonal)}$$
+            </div>
+
+            <p>Both satisfy the constraint that rotated queries align with rotated keys at the target relative offset.</p>
+
+            <h3>6.3 Gabor Filter Interpretation</h3>
+
+            <p>Empirical analysis shows SGD learns weights approximating Gabor filters:</p>
+
+            <div class="equation-box">
+                <div class="label">Equation 17: Gabor Filter Form</div>
+                $$W[i,j] \approx A \cdot \exp\left(-\frac{(j-\mu)^2}{\sigma^2}\right) \cdot \cos(\omega \cdot j + \phi)$$
+            </div>
+
+            <ul>
+                <li><strong>Gaussian envelope</strong> $\exp(\cdots)$: localizes to relevant dimensions</li>
+                <li><strong>Cosine modulation</strong> $\cos(\cdots)$: creates frequency-specific response</li>
+            </ul>
+
+            <h3>6.4 Summary Comparison</h3>
+
+            <table>
+                <tr>
+                    <th>Property</th>
+                    <th>Hand-Coded</th>
+                    <th>SGD Learned</th>
+                </tr>
+                <tr>
+                    <td>Weight values</td>
+                    <td>Discrete $\{+1, -1\}$</td>
+                    <td>Continuous $\mathbb{R}$</td>
+                </tr>
+                <tr>
+                    <td>Orthogonality</td>
+                    <td>Perfect</td>
+                    <td>Approximate</td>
+                </tr>
+                <tr>
+                    <td>Interpretability</td>
+                    <td>Immediate</td>
+                    <td>Requires analysis</td>
+                </tr>
+                <tr>
+                    <td>Robustness</td>
+                    <td>Fragile</td>
+                    <td>Generalizes better</td>
+                </tr>
+                <tr>
+                    <td>Optimization</td>
+                    <td>N/A</td>
+                    <td>Gradient descent</td>
+                </tr>
+            </table>
+
+            <div class="insight">
+                <div class="insight-title">🎯 Key Insight</div>
+                <p>SGD finds a solution in a <strong>different subspace</strong> of the weight space that achieves functional equivalence but trades perfect orthogonality for robustness and learnability. The alternating pattern is <em>one</em> solution; SGD finds <em>another</em> that's easier to reach via gradient descent from random initialization.</p>
+            </div>
+        </section>
+
+        <div class="back">
+            <a href="/rope-explorer/">← Back to RoPE Explorer</a>
+        </div>
+    </div>
+</body>
+</html>
