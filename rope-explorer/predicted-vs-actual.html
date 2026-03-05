@@ -4,8 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verified Derivation: Predicted vs Actual Weights</title>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
     <style>
         :root {
             --bg: #0a0a0f;
@@ -144,6 +154,9 @@
         .nav a:hover {
             background: rgba(139, 92, 246, 0.1);
         }
+        mjx-container {
+            color: var(--text) !important;
+        }
     </style>
 </head>
 <body>
@@ -155,16 +168,16 @@
     <div class="container">
         <h2>1. Step 1: Calculate RoPE Frequencies</h2>
         
-        <p><strong>Formula:</strong> $\\theta_i = \\text{base}^{-2i/d_{\\text{head}}}$ with base=10000, d<sub>head</sub>=32</p>
+        <p><strong>Formula:</strong> $\theta_i = \text{base}^{-2i/d_{\text{head}}}$ with base=10000, d<sub>head</sub>=32</p>
         
         <div class="verification-box">
             <h3>✓ Calculated Values</h3>
             <table class="comparison-table">
                 <tr>
                     <th>i</th>
-                    <th>$\\theta_i$</th>
-                    <th>$\\cos(\\theta_i)$</th>
-                    <th>$\\sin(\\theta_i)$</th>
+                    <th>$\theta_i$</th>
+                    <th>$\cos(\theta_i)$</th>
+                    <th>$\sin(\theta_i)$</th>
                 </tr>
                 <tr><td>0</td><td>1.000000</td><td><strong>0.5403</strong></td><td><strong>0.8415</strong></td></tr>
                 <tr><td>1</td><td>0.562341</td><td>0.8460</td><td>0.5332</td></tr>
@@ -179,24 +192,24 @@
 
         <h2>2. Step 2: Derive Expected W_q Pattern</h2>
         
-        <p><strong>Goal:</strong> Maximize score at offset $\\Delta = 1$ (previous token)</p>
+        <p><strong>Goal:</strong> Maximize score at offset $\Delta = 1$ (previous token)</p>
         
         <div class="equation-box">
             <div class="label">Score Formula</div>
-            $$\\text{score}(m, n) = \\sum_i \\left[\\cos((m-n)\\theta_i) \\cdot (q_{2i}k_{2i} + q_{2i+1}k_{2i+1}) + \\sin((m-n)\\theta_i) \\cdot (q_{2i}k_{2i+1} - q_{2i+1}k_{2i})\\right]$$
+            $$\text{score}(m, n) = \sum_i \left[\cos((m-n)\theta_i) \cdot (q_{2i}k_{2i} + q_{2i+1}k_{2i+1}) + \sin((m-n)\theta_i) \cdot (q_{2i}k_{2i+1} - q_{2i+1}k_{2i})\right]$$
         </div>
 
-        <p><strong>For $\\Delta = 1$:</strong> We need to align with $\\cos(\\theta_0) = 0.5403$ and $\\sin(\\theta_0) = 0.8415$</p>
+        <p><strong>For $\Delta = 1$:</strong> We need to align with $\cos(\theta_0) = 0.5403$ and $\sin(\theta_0) = 0.8415$</p>
 
         <h3>Derivation for First Dimension Pair:</h3>
         
         <div class="equation-box">
             <div class="label">Solving for Optimal q[0], q[1]</div>
             <p>Given k[0] = k[1] = 0.5 (normalized):</p>
-            $$q[0] \\cdot 0.5 + q[1] \\cdot 0.5 = 0.5403 \\Rightarrow q[0] + q[1] = 1.0806$$
-            $$q[0] \\cdot 0.5 - q[1] \\cdot 0.5 = 0.8415 \\Rightarrow q[0] - q[1] = 1.6830$$
+            $$q[0] \cdot 0.5 + q[1] \cdot 0.5 = 0.5403 \Rightarrow q[0] + q[1] = 1.0806$$
+            $$q[0] \cdot 0.5 - q[1] \cdot 0.5 = 0.8415 \Rightarrow q[0] - q[1] = 1.6830$$
             <p style="margin-top:1rem;"><strong>Solving:</strong></p>
-            $$q[0] = 1.3818 \\quad q[1] = -0.3012$$
+            $$q[0] = 1.3818 \quad q[1] = -0.3012$$
         </div>
 
         <p><strong>Adjustment for input scale:</strong> Divide by expected input magnitude (~16 for 128 dims with variance 1/d<sub>model</sub>)</p>
